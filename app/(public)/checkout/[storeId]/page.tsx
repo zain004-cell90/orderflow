@@ -1,0 +1,2 @@
+import type { Metadata } from "next";import { PublicCheckoutPage } from "@/components/public/public-checkout-page";
+export const metadata:Metadata={title:"Checkout | OrderFlow",description:"Confirm your cash on delivery order.",robots:{index:false,follow:false}};export default async function Page({params}:{params:Promise<{storeId:string}>}){const {storeId}=await params;return <PublicCheckoutPage storeId={storeId}/>}

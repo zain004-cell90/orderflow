@@ -1,0 +1,2 @@
+import type { Metadata } from "next";import { Suspense } from "react";import { TrackPage } from "@/components/public/track-page";
+export const metadata:Metadata={title:"Track Your Order | OrderFlow",description:"Track an OrderFlow order using your phone number.",alternates:{canonical:"/track"}};export default function Page(){return <Suspense fallback={<main className="min-h-screen bg-[#f9f9ff]"/>}><TrackPage/></Suspense>}

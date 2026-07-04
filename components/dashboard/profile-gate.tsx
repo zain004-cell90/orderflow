@@ -1,0 +1,5 @@
+"use client";
+import { useRouter } from "next/navigation";
+import { Store, X } from "lucide-react";
+import { routes } from "@/lib/routes";
+export function ProfileCompletionModal({open,onClose}:{open:boolean;onClose:()=>void}){const router=useRouter();if(!open)return null;return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="profile-gate-title"><div className="modal profile-gate-modal"><div className="modal-head"><div><h2 id="profile-gate-title">Complete your store profile</h2><p>Add your store name before creating products or checkout links.</p></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={17}/></button></div><div className="modal-body"><div className="billing-coming-soon"><Store size={28}/><h3>Store name required</h3><p>Your dashboard remains available. Only selling actions need a store identity.</p></div></div><div className="modal-foot"><button className="btn-secondary ml-auto" onClick={onClose}>Cancel</button><button className="btn-primary ml-2" onClick={()=>router.push(`${routes.settings}?tab=store`)}>Complete Now</button></div></div></div>}

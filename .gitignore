@@ -1,0 +1,23 @@
+# dependencies
+/node_modules
+
+# Next.js output
+/.next
+/out
+
+# local environment files
+.env*
+!.env.example
+
+# logs and system files
+*.log
+.DS_Store
+Thumbs.db
+
+# TypeScript cache
+*.tsbuildinfo
+
+# local agent and design source exports
+.agents/
+stitch/
+public/assets/stitch/
