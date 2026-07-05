@@ -3,7 +3,7 @@ import { getSiteUrl } from "@/lib/site-url";
 
 const base = getSiteUrl();
 export default function sitemap(): MetadataRoute.Sitemap {
-  return ["", "/contact", "/track", "/login", "/signup"].map((path, index) => ({
+  return ["", "/contact", "/track", "/login", "/signup", "/privacy", "/terms"].map((path, index) => ({
     url: `${base}${path || "/"}`,
     lastModified: new Date(),
     changeFrequency: index === 0 ? "weekly" : "monthly",

@@ -21,6 +21,7 @@ import {
   statusToDb,
   toPlanDb,
 } from "./mappers";
+import { isInvalidRefreshTokenError } from "./errors";
 
 export type DashboardData = {
   store: any | null;
@@ -38,11 +39,14 @@ export type DashboardData = {
 export async function loadDashboardData(
   supabase: SupabaseClient,
 ): Promise<DashboardData> {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError) throw userError;
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) {
+    if (isInvalidRefreshTokenError(userError)) {
+      throw new Error("Your session expired. Please log in again.");
+    }
+    throw userError;
+  }
+  const user = userData.user;
   if (!user) throw new Error("You must be logged in.");
 
   const { data: profile, error: profileError } = await supabase
@@ -164,11 +168,14 @@ export async function createOrUpdateStoreFromOnboarding(
     trackingEnabled: boolean;
   },
 ) {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError) throw userError;
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) {
+    if (isInvalidRefreshTokenError(userError)) {
+      throw new Error("Your session expired. Please log in again.");
+    }
+    throw userError;
+  }
+  const user = userData.user;
   if (!user) throw new Error("You must be logged in.");
 
   const slug = slugify(input.storeName || `${user.email?.split("@")[0]} store`);

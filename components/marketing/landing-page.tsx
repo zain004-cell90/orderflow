@@ -100,12 +100,6 @@ export function LandingPage() {
                 <Link className="btn-primary" href={routes.signup}>
                   Create Your Checkout Link
                 </Link>
-                <Link
-                  className="btn-secondary !rounded-full !px-6 !py-3.5"
-                  href={routes.demo}
-                >
-                  Watch Demo
-                </Link>
               </div>
               <div className="hero-proof flex-wrap">
                 <span className="flex items-center gap-1">
@@ -289,26 +283,38 @@ export function LandingPage() {
             <div className="price-grid">
               <Price
                 name="Free"
-                price="Rs 0/month"
-                badge="Start free"
+                price="Rs 0 / month"
+                badge="Current Plan"
                 items={[
                   "25 orders per month",
-                  "Unlimited products",
                   "Branded checkout",
+                  "Customer tracking",
+                  "100 MB storage space for images",
                 ]}
               />
               <Price
                 featured
                 name="Starter"
-                price="Rs 799/month"
+                price="Rs 799 / month"
                 badge="Best for new sellers"
                 items={[
                   "150 orders per month",
                   "Tracking tools",
                   "Customer database",
+                  "500 MB storage space for images",
                 ]}
               />
-              <Price name="Growth" price="Rs 1,999/month" badge="For growing stores" items={["500 orders per month","Growth analytics","Priority support"]}/>
+              <Price
+                name="Growth"
+                price="Rs 1,999 / month"
+                badge="For growing stores"
+                items={[
+                  "500 orders per month",
+                  "Growth analytics",
+                  "Priority support",
+                  "Unlimited storage space for images",
+                ]}
+              />
             </div>
           </div>
         </section>

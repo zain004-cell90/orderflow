@@ -32,7 +32,7 @@ export function PublicFooter() {
       <div className="mx-auto flex max-w-[1280px] flex-col items-center justify-between gap-5 px-6 md:flex-row">
         <div><Link href={routes.home} className="text-[18px] font-bold text-[#141b2b]">OrderFlow</Link><p className="mt-1 text-[10px] text-[#464555]/60">© 2026 OrderFlow. All rights reserved.</p></div>
         <div className="flex flex-wrap justify-center gap-6 text-[10px] text-[#464555]">
-          <Link href={routes.features}>Features</Link><Link href={routes.track}>Track Order</Link><Link href={routes.login}>Log In</Link><Link href={routes.signup}>Start Free</Link><span className="cursor-not-allowed opacity-50">Privacy</span><span className="cursor-not-allowed opacity-50">Terms</span><Link href={routes.contact}>Contact</Link>
+          <Link href={routes.features}>Features</Link><Link href={routes.track}>Track Order</Link><Link href={routes.login}>Log In</Link><Link href={routes.signup}>Start Free</Link><Link href={routes.privacy}>Privacy</Link><Link href={routes.terms}>Terms</Link><Link href={routes.contact}>Contact</Link>
         </div>
       </div>
     </footer>

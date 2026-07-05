@@ -6,6 +6,8 @@ export const routes = {
   pricing: "/#pricing",
   faq: "/#faq",
   contact: "/contact",
+  privacy: "/privacy",
+  terms: "/terms",
   track: "/track",
   login: "/login",
   signup: "/signup",
@@ -33,7 +35,6 @@ export interface NavigationLink {
 export const marketingNavigation: NavigationLink[] = [
   { label: "Features", href: routes.features },
   { label: "How It Works", href: routes.howItWorks },
-  { label: "Watch Demo", href: routes.demo },
   { label: "Pricing", href: routes.pricing },
   { label: "FAQ", href: routes.faq },
 ];
@@ -41,7 +42,6 @@ export const marketingNavigation: NavigationLink[] = [
 export const productFooterLinks: NavigationLink[] = [
   { label: "Features", href: routes.features },
   { label: "How It Works", href: routes.howItWorks },
-  { label: "Watch Demo", href: routes.demo },
   { label: "Pricing", href: routes.pricing },
 ];
 
@@ -50,6 +50,6 @@ export const companyFooterLinks: NavigationLink[] = [
   { label: "Track Order", href: routes.track },
   { label: "Log In", href: routes.login },
   { label: "Start Free", href: routes.signup },
-  { label: "Privacy", disabled: true },
-  { label: "Terms", disabled: true },
+  { label: "Privacy", href: routes.privacy },
+  { label: "Terms", href: routes.terms },
 ];

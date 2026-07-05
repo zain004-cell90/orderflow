@@ -8,6 +8,11 @@ export const planLimits: Record<UserPlan, number> = {
   Starter: 150,
   Growth: 500,
 };
+export const planStorageLimitsMb: Record<UserPlan, number | null> = {
+  Free: 100,
+  Starter: 500,
+  Growth: null,
+};
 
 export const seedUsers: MockUser[] = [
   {
@@ -161,4 +166,11 @@ export function monthlyOrderCount<
 }
 export function orderLimitFor(plan: UserPlan) {
   return planLimits[plan];
+}
+export function storageLimitFor(plan: UserPlan) {
+  return planStorageLimitsMb[plan];
+}
+export function storageLimitLabel(plan: UserPlan) {
+  const limit = storageLimitFor(plan);
+  return limit === null ? "Unlimited" : `${limit} MB`;
 }

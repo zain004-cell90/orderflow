@@ -21,7 +21,11 @@ import {
   storageKeys,
   writeStorage,
 } from "@/lib/storage";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  clearSupabaseBrowserSession,
+  createSupabaseBrowserClient,
+  isInvalidRefreshTokenError,
+} from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   loadDashboardData,
@@ -167,6 +171,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (error) {
+      if (
+        isInvalidRefreshTokenError(error) ||
+        (error instanceof Error && /session expired/i.test(error.message))
+      ) {
+        await clearSupabaseBrowserSession(supabase);
+        window.location.href = `/login?next=${encodeURIComponent(
+          window.location.pathname + window.location.search,
+        )}`;
+        return;
+      }
       toast(
         error instanceof Error ? error.message : "Could not load dashboard data.",
         "error",

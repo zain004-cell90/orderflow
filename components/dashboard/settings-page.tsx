@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { downloadCsv } from "@/lib/csv";
+import { orderLimitFor, storageLimitLabel } from "@/lib/mock-auth";
 import { defaultCheckoutConfig } from "@/lib/mock-data";
 import {
   countryOptions,
@@ -795,7 +796,7 @@ function BillingPanel() {
         <div className="billing-usage-grid">
           <Usage
             label="Orders used"
-            value={`${orders.length} / ${currentPlan === "Free" ? "25" : currentPlan === "Starter" ? "150" : "500"}`}
+            value={`${orders.length} / ${orderLimitFor(currentPlan)}`}
           />
           <Usage
             label="Products used"
@@ -804,7 +805,7 @@ function BillingPanel() {
           <Usage label="Customers" value={String(customers.length)} />
           <Usage
             label="Storage used"
-            value={`${billing.storageUsedMb} MB / ${currentPlan === "Free" ? "500 MB" : "10 GB"}`}
+            value={`${billing.storageUsedMb} MB / ${storageLimitLabel(currentPlan)}`}
           />
         </div>
         <div className="plan-card-grid three-plans">
@@ -817,6 +818,7 @@ function BillingPanel() {
               "25 orders per month",
               "Branded checkout",
               "Customer tracking",
+              "100 MB storage space for images",
             ]}
             action={() =>
               currentPlan === "Free"
@@ -834,6 +836,7 @@ function BillingPanel() {
               "150 orders per month",
               "Tracking tools",
               "Customer database",
+              "500 MB storage space for images",
             ]}
             action={() =>
               currentPlan === "Starter"
@@ -850,6 +853,7 @@ function BillingPanel() {
               "500 orders per month",
               "Growth analytics",
               "Priority support",
+              "Unlimited storage space for images",
             ]}
             action={() => billingAction("upgrade")}
           />

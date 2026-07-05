@@ -19,7 +19,11 @@ import {
   readMockUsers,
 } from "@/lib/mock-auth";
 import { storageKeys, writeStorage } from "@/lib/storage";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  clearSupabaseBrowserSession,
+  createSupabaseBrowserClient,
+  isInvalidRefreshTokenError,
+} from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { toPlanDb, toPlanUi } from "@/lib/supabase/mappers";
 import { routes } from "@/lib/routes";
@@ -96,9 +100,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadSupabaseAuthState = useCallback(
     async (emailHint?: string) => {
       if (!supabase) return;
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
+      const { data, error } = await supabase.auth.getUser();
+      if (error) {
+        if (isInvalidRefreshTokenError(error)) {
+          await clearSupabaseBrowserSession(supabase);
+          setSession(null);
+          setUsers([]);
+          setStores([]);
+          return;
+        }
+        throw error;
+      }
+      const authUser = data.user;
       if (!authUser) {
         setSession(null);
         setUsers([]);
@@ -204,8 +217,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, 0);
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange(() => {
-        loadSupabaseAuthState().catch(() => undefined);
+      } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        if (!nextSession) {
+          setSession(null);
+          return;
+        }
+        loadSupabaseAuthState().catch((error) => {
+          if (isInvalidRefreshTokenError(error)) {
+            void clearSupabaseBrowserSession(supabase);
+            setSession(null);
+            setUsers([]);
+            setStores([]);
+          }
+        });
       });
       return () => {
         active = false;
@@ -276,10 +300,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           message: "This account has been deleted. Contact support.",
         };
       }
+      const {
+        data: { user: signedInUser },
+        error: currentUserError,
+      } = await supabase.auth.getUser();
+      if (currentUserError && isInvalidRefreshTokenError(currentUserError)) {
+        await clearSupabaseBrowserSession(supabase);
+        setSession(null);
+        return {
+          ok: false,
+          message: "Your session expired. Please log in again.",
+        };
+      }
       const { data: store } = await supabase
         .from("stores")
         .select("id, is_setup_complete")
-        .eq("owner_id", (await supabase.auth.getUser()).data.user?.id || "")
+        .eq("owner_id", signedInUser?.id || "")
         .maybeSingle();
       return {
         ok: true,
@@ -468,7 +504,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const deleteUser = (id: string) => updateUser(id, { status: "Deleted" });
   const logout = async () => {
-    if (supabase) await supabase.auth.signOut();
+    if (supabase) await clearSupabaseBrowserSession(supabase);
     setSession(null);
     if (!supabase) persistMockSession(null);
   };
