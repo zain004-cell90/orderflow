@@ -88,7 +88,13 @@ function createUser(name: string, email: string): MockUser {
     customersUsed: 0,
   };
 }
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  bootAuthState = true,
+}: {
+  children: ReactNode;
+  bootAuthState?: boolean;
+}) {
   const [session, setSession] = useState<MockAuthSession | null>(null);
   const [users, setUsers] = useState<MockUser[]>([]);
   const [stores, setStores] = useState<MockStore[]>([]);
@@ -202,6 +208,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [supabase],
   );
   useEffect(() => {
+    if (!bootAuthState) {
+      const id = window.setTimeout(() => {
+        if (!supabase) {
+          setSession(readMockSession());
+          setUsers(readMockUsers());
+          setStores(readMockStores());
+        }
+        setReady(true);
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
     if (supabase) {
       let active = true;
       const boot = window.setTimeout(() => {
@@ -244,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadSupabaseAuthState, supabase]);
+  }, [bootAuthState, loadSupabaseAuthState, supabase]);
   useEffect(() => {
     if (ready) writeStorage(storageKeys.users, users);
   }, [users, ready]);

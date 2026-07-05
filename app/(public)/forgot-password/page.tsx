@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AuthProvider } from "@/components/auth/auth-provider";
 import { ForgotPasswordPage } from "@/components/public/auth-pages";
 
 export const metadata: Metadata = {
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <ForgotPasswordPage />;
+  return (
+    <AuthProvider bootAuthState={false}>
+      <ForgotPasswordPage />
+    </AuthProvider>
+  );
 }

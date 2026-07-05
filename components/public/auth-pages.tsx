@@ -124,7 +124,6 @@ export function LoginPage() {
             alt="OrderFlow dashboard preview"
             width={512}
             height={512}
-            priority
           />
         </div>
       </section>
@@ -252,9 +251,9 @@ export function LoginPage() {
         <footer className="mt-auto pt-12 text-center text-[10px] text-[#777587]">
           <p>© 2026 OrderFlow. All rights reserved.</p>
           <div className="mt-4 flex justify-center gap-4">
-            <a href="#">Privacy Policy</a>
+            <Link href={routes.privacy}>Privacy Policy</Link>
             <span>•</span>
-            <a href="#">Terms of Service</a>
+            <Link href={routes.terms}>Terms of Service</Link>
           </div>
         </footer>
       </section>
@@ -399,8 +398,8 @@ export function SignupPage() {
               </Link>
             </p>
             <div className="flex justify-center gap-6 text-[10px] text-[#777587]">
-              <a href="#">Privacy Policy</a>
-              <a href="#">Terms of Service</a>
+              <Link href={routes.privacy}>Privacy Policy</Link>
+              <Link href={routes.terms}>Terms of Service</Link>
             </div>
           </div>
         </div>
