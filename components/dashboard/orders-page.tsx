@@ -23,7 +23,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { Order, OrderStatus, PaymentMethod } from "@/lib/mock-data";
+import type { Order, OrderStatus, PaymentMethod, Product } from "@/lib/mock-data";
 import { downloadCsv } from "@/lib/csv";
 import {
   sanitizeMultiline,
@@ -62,6 +62,7 @@ export function OrdersPage() {
     toast,
     addNotification,
     storeSettings,
+    products,
   } = useDashboard();
   const params = useSearchParams();
   const mobile = useMobile();
@@ -427,6 +428,7 @@ export function OrdersPage() {
       {creating && (
         <OrderFormModal
           title="Create Order"
+          products={products}
           onClose={() => setCreating(false)}
           onSave={(values) => saveOrder(values)}
         />
@@ -435,6 +437,7 @@ export function OrdersPage() {
         <OrderFormModal
           title="Edit Order"
           order={editing}
+          products={products}
           onClose={() => setEditing(null)}
           onSave={(values) => saveOrder(values, editing)}
         />
@@ -724,10 +727,16 @@ function OrderStatusBadge({ status }: { status: OrderStatus }) {
 type OrderFormValues = {
   customer: string;
   phone: string;
+  productId?: string;
+  productName?: string;
+  productImage?: string;
   product: string;
   variant: string;
+  size?: string;
+  color?: string;
   quantity: number;
   amount: number;
+  totalAmount: number;
   address: string;
   city: string;
   paymentMethod: PaymentMethod;
@@ -738,24 +747,81 @@ type OrderFormValues = {
 function OrderFormModal({
   title,
   order,
+  products,
   onClose,
   onSave,
 }: {
   title: string;
   order?: Order;
+  products: Product[];
   onClose: () => void;
   onSave: (values: OrderFormValues) => void;
 }) {
+  const selectableProducts = useMemo(
+    () => products.filter((product) => product.status !== "Archived"),
+    [products],
+  );
+  const initialProduct = order
+    ? products.find(
+        (product) =>
+          String(product.id) === String(order.productId) ||
+          product.name === order.product,
+      )
+    : selectableProducts[0];
+  const initialProductId = initialProduct ? String(initialProduct.id) : "";
+  const [selectedProductId, setSelectedProductId] = useState(initialProductId);
+  const selectedProduct = useMemo(
+    () =>
+      products.find((product) => String(product.id) === selectedProductId) ||
+      selectableProducts[0],
+    [products, selectableProducts, selectedProductId],
+  );
+  const [quantity, setQuantity] = useState(order?.quantity || 1);
+  const [size, setSize] = useState(order?.size || "");
+  const [color, setColor] = useState(order?.color || "");
+  const [amount, setAmount] = useState(
+    order?.amount || (selectedProduct ? selectedProduct.price : 0),
+  );
+  const productOptions = selectedProduct
+    ? selectableProducts.some((product) => String(product.id) === selectedProductId)
+      ? selectableProducts
+      : [selectedProduct, ...selectableProducts]
+    : selectableProducts;
+  const displayProductId = selectedProduct ? String(selectedProduct.id) : "";
+  const displayAmount =
+    amount || (selectedProduct ? selectedProduct.price * Math.max(quantity, 1) : 0);
+  const displaySize =
+    selectedProduct && size && selectedProduct.sizes.includes(size)
+      ? size
+      : selectedProduct?.sizes[0] || "";
+  const displayColor =
+    selectedProduct && color && selectedProduct.colors.includes(color)
+      ? color
+      : selectedProduct?.colors[0] || "";
+
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!selectedProduct) return;
     const d = new FormData(e.currentTarget);
+    const orderQuantity = Math.max(Number(d.get("quantity")) || 1, 1);
+    const orderAmount = Number(d.get("amount")) || selectedProduct.price * orderQuantity;
+    const selectedSize = sanitizeText(d.get("size"), 80);
+    const selectedColor = sanitizeText(d.get("color"), 80);
+    const manualVariant = sanitizeText(d.get("variant"), 100);
+    const variant = manualVariant || [selectedSize, selectedColor].filter(Boolean).join(" / ");
     onSave({
       customer: sanitizeText(d.get("customer"), 80),
       phone: sanitizePhone(d.get("phone")),
-      product: sanitizeText(d.get("product"), 100),
-      variant: sanitizeText(d.get("variant"), 100),
-      quantity: Number(d.get("quantity")) || 1,
-      amount: Number(d.get("amount")) || 0,
+      productId: String(selectedProduct.id),
+      productName: selectedProduct.name,
+      productImage: selectedProduct.image,
+      product: selectedProduct.name,
+      variant,
+      size: selectedSize,
+      color: selectedColor,
+      quantity: orderQuantity,
+      amount: orderAmount,
+      totalAmount: orderAmount,
       address: sanitizeMultiline(d.get("address"), 300),
       city: sanitizeText(d.get("city"), 80),
       paymentMethod: String(d.get("paymentMethod")) as PaymentMethod,
@@ -785,7 +851,11 @@ function OrderFormModal({
         <div className="modal-head">
           <div>
             <h2 id="order-form-title">{title}</h2>
-            <p>{order ? `Update ${order.id}.` : "Add a new customer order."}</p>
+            <p>
+              {order
+                ? `Update ${order.id}.`
+                : "Select an existing product and add the customer details."}
+            </p>
           </div>
           <button
             type="button"
@@ -814,12 +884,34 @@ function OrderFormModal({
             />
           </FormField>
           <FormField label="Product">
-            <input
+            <select
               required
-              name="product"
+              name="productId"
               className="field"
-              defaultValue={order?.product}
-            />
+              value={displayProductId}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                const nextProduct = products.find(
+                  (product) => String(product.id) === nextId,
+                );
+                setSelectedProductId(nextId);
+                setSize("");
+                setColor("");
+                if (nextProduct) {
+                  setAmount(nextProduct.price * Math.max(quantity, 1));
+                }
+              }}
+              disabled={!productOptions.length}
+            >
+              {!productOptions.length && (
+                <option value="">Add a product first</option>
+              )}
+              {productOptions.map((product) => (
+                <option key={String(product.id)} value={String(product.id)}>
+                  {product.name} — PKR {product.price.toLocaleString()}
+                </option>
+              ))}
+            </select>
           </FormField>
           <FormField label="Variant">
             <input
@@ -835,7 +927,14 @@ function OrderFormModal({
               className="field"
               inputMode="numeric"
               min="1"
-              defaultValue={order?.quantity || 1}
+              value={quantity}
+              onChange={(e) => {
+                const nextQuantity = Math.max(Number(e.target.value) || 1, 1);
+                setQuantity(nextQuantity);
+                if (selectedProduct) {
+                  setAmount(selectedProduct.price * nextQuantity);
+                }
+              }}
             />
           </FormField>
           <FormField label="Amount">
@@ -845,9 +944,38 @@ function OrderFormModal({
               className="field"
               inputMode="numeric"
               min="0"
-              defaultValue={order?.amount}
+              value={displayAmount}
+              onChange={(e) => setAmount(Number(e.target.value) || 0)}
             />
           </FormField>
+          {selectedProduct?.sizes.length ? (
+            <FormField label="Size">
+              <select
+                name="size"
+                className="field"
+                value={displaySize}
+                onChange={(e) => setSize(e.target.value)}
+              >
+                {selectedProduct.sizes.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </FormField>
+          ) : null}
+          {selectedProduct?.colors.length ? (
+            <FormField label="Color">
+              <select
+                name="color"
+                className="field"
+                value={displayColor}
+                onChange={(e) => setColor(e.target.value)}
+              >
+                {selectedProduct.colors.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </FormField>
+          ) : null}
           <FormField label="Address" full>
             <input
               name="address"
@@ -924,7 +1052,7 @@ function OrderFormModal({
           >
             Cancel
           </button>
-          <button className="btn-primary ml-2">
+          <button className="btn-primary ml-2" disabled={!selectedProduct}>
             {order ? "Save Changes" : "Create Order"}
           </button>
         </div>

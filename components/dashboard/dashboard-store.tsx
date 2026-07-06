@@ -344,25 +344,29 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               .single();
             if (orderError) throw orderError;
             if (order.productId) {
-              await supabase.from("order_items").insert({
+              const { error: itemError } = await supabase.from("order_items").insert({
                 order_id: created.id,
                 product_id: String(order.productId),
                 product_name: order.productName || order.product,
-                product_image: order.productImage || null,
+                product_image_url: order.productImage || null,
                 quantity: order.quantity || 1,
                 unit_price:
                   (order.totalAmount || order.amount) / Math.max(order.quantity || 1, 1),
                 total_price: order.totalAmount || order.amount,
-                size: order.size || null,
-                color: order.color || null,
-                variant_label: order.variant || null,
+                selected_options: {
+                  ...(order.size ? { Size: order.size } : {}),
+                  ...(order.color ? { Color: order.color } : {}),
+                  ...(order.variant ? { Variant: order.variant } : {}),
+                },
               });
+              if (itemError) throw itemError;
             }
-            await supabase.from("order_timeline").insert({
+            const { error: timelineError } = await supabase.from("order_timeline").insert({
               order_id: created.id,
               status: statusToDb[order.status],
               note: "Order created from dashboard.",
             });
+            if (timelineError) throw timelineError;
             await refreshSupabaseData();
             toast("Order created successfully.");
           }))
