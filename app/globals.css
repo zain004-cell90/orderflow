@@ -747,3 +747,114 @@ p, h1, h2, h3, h4, a, button, span, td, th, label { overflow-wrap: anywhere; }
   .spotlight{padding:16px;border-radius:24px}
   .spotlight .checkout-demo{padding:0}
 }
+
+/* Dashboard readability pass: keep layout, raise secondary text sizes */
+.dashboard-layout .tab,
+.dashboard-layout .btn-secondary,
+.dashboard-layout .btn-primary,
+.dashboard-layout .field,
+.dashboard-layout select,
+.dashboard-layout input,
+.dashboard-layout textarea,
+.dashboard-layout .filter-actions button,
+.dashboard-layout .date-filter,
+.dashboard-layout .page-word,
+.dashboard-layout .export-menu button,
+.dashboard-layout .settings-nav button,
+.dashboard-layout .toggle-row,
+.dashboard-layout .color-input,
+.dashboard-layout .payment-tab {
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+.dashboard-layout small,
+.dashboard-layout .subhead p,
+.dashboard-layout .panel-head a,
+.dashboard-layout .text-action,
+.dashboard-layout .table-footer,
+.dashboard-layout .product-meta,
+.dashboard-layout .activity p,
+.dashboard-layout .activity time,
+.dashboard-layout .modal-head p,
+.dashboard-layout .form-group label,
+.dashboard-layout .upload,
+.dashboard-layout .customer-cell small,
+.dashboard-layout .customer-filters label,
+.dashboard-layout .customer-filters .filter-pair label,
+.dashboard-layout .customer-metric-grid small,
+.dashboard-layout .customer-history-row small,
+.dashboard-layout .custom-fields-head p,
+.dashboard-layout .custom-field-card label,
+.dashboard-layout .custom-fields-empty,
+.dashboard-layout .product-custom-summary small,
+.dashboard-layout .product-custom-summary em,
+.dashboard-layout .preview-custom-field,
+.dashboard-layout .builder-heading p,
+.dashboard-layout .checkout-field-grid label,
+.dashboard-layout .checkout-store-brand small,
+.dashboard-layout .builder-product small,
+.dashboard-layout .cod-notice,
+.dashboard-layout .analytics-card-head p,
+.dashboard-layout .analytics-card-head > span,
+.dashboard-layout .analytics-product-row small,
+.dashboard-layout .summary-metrics small,
+.dashboard-layout .analytics-compact-list small,
+.dashboard-layout .cod-rate span,
+.dashboard-layout .cod-stats span,
+.dashboard-layout .analytics-mini-empty,
+.dashboard-layout .analytics-search-empty,
+.dashboard-layout .billing-usage-grid small,
+.dashboard-layout .billing-usage-grid strong,
+.dashboard-layout .plan-choice li,
+.dashboard-layout .billing-coming-soon p,
+.dashboard-layout .notifications-menu time {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+.dashboard-layout .data-table th,
+.dashboard-layout .data-table td,
+.dashboard-layout .mobile-order p,
+.dashboard-layout .row-actions button,
+.dashboard-layout .quick-item,
+.dashboard-layout .legend-row,
+.dashboard-layout .legend-name,
+.dashboard-layout .best-item,
+.dashboard-layout .insight,
+.dashboard-layout .settings-card > p,
+.dashboard-layout .automation-row strong,
+.dashboard-layout .automation-row p,
+.dashboard-layout .checkout-link-preview small,
+.dashboard-layout .checkout-link-preview b,
+.dashboard-layout .notifications-menu > button {
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+.dashboard-layout .data-table td span.text-\[8px\],
+.dashboard-layout .data-table td .text-\[8px\] {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+.dashboard-layout .status {
+  min-height: 26px;
+  padding: 5px 10px;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+}
+.dashboard-layout .eyebrow,
+.dashboard-layout .settings-block h3,
+.dashboard-layout .profile-section h4,
+.dashboard-layout .settings-nav label,
+.dashboard-layout .preview-label,
+.dashboard-layout .browser-address {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+.dashboard-layout .stat-card label,
+.dashboard-layout .stat-card small,
+.dashboard-layout .trend {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+.dashboard-layout .notifications-menu {
+  width: min(390px, calc(100vw - 24px));
+}

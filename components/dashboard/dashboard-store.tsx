@@ -121,6 +121,10 @@ function isCurrentMonth(value?: string) {
   );
 }
 
+function isAllowedNotification(type: NotificationType) {
+  return type === "New Order" || type === "Customer Added";
+}
+
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>(emptyOrders);
   const [products, setProducts] = useState<Product[]>(emptyProducts);
@@ -159,7 +163,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setOrders(data.orders);
       setProducts(data.products);
       setCustomers(data.customers);
-      setNotifications(data.notifications);
+      setNotifications(
+        data.notifications.filter((notification) =>
+          isAllowedNotification(notification.type),
+        ),
+      );
       setStoreSettings(data.storeSettings || initialSettings);
       if (data.checkoutConfig) {
         writeStorage(storageKeys.checkout, data.checkoutConfig);
@@ -203,7 +211,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setProducts(readProducts(emptyProducts));
       setCustomers(readCustomers(emptyCustomers));
       setStoreSettings(readSettings(initialSettings));
-      setNotifications(readNotifications(initialNotifications));
+      setNotifications(
+        readNotifications(initialNotifications).filter((notification) =>
+          isAllowedNotification(notification.type),
+        ),
+      );
       setHydrated(true);
       setLoading(false);
     }, 180);
@@ -246,7 +258,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       if (!key || key === storageKeys.settings)
         setStoreSettings(readSettings(initialSettings));
       if (!key || key === storageKeys.notifications)
-        setNotifications(readNotifications(initialNotifications));
+        setNotifications(
+          readNotifications(initialNotifications).filter((notification) =>
+            isAllowedNotification(notification.type),
+          ),
+        );
     };
     window.addEventListener("storage", sync);
     window.addEventListener("orderflow-storage", sync);
@@ -258,6 +274,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const addNotification = useCallback(
     (notification: NewNotification) => {
+      if (!isAllowedNotification(notification.type)) return;
       const nextNotification = {
         id: `notification-${Date.now()}-${Math.random()}`,
         ...notification,
