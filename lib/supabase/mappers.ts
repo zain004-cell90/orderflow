@@ -273,7 +273,11 @@ export function mapCheckoutConfig(store: any, page: any, settings: any, fields: 
     brandColor: settings?.accent_color || "#60A5FA",
     buttonColor: settings?.button_color || "#4F46E5",
     selectedProductId: page?.selected_product_id || "",
-    optionalFields: { email: true, referral: false, giftNote: false },
+    optionalFields: {
+      email: settings?.email_field_enabled ?? true,
+      referral: settings?.referral_field_enabled ?? false,
+      giftNote: settings?.gift_note_field_enabled ?? false,
+    },
     customFields: (fields || []).map((field) => ({
       id: field.id,
       label: field.label,

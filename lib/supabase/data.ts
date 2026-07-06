@@ -381,9 +381,13 @@ export async function saveCheckoutConfig(
   if (storeError) throw storeError;
   const { error: settingsError } = await supabase
     .from("store_settings")
-    .update({
+    .upsert({
+      store_id: storeId,
       button_color: config.buttonColor,
       accent_color: config.brandColor,
+      email_field_enabled: config.optionalFields.email,
+      referral_field_enabled: config.optionalFields.referral,
+      gift_note_field_enabled: config.optionalFields.giftNote,
       phone_required: config.requirePhone,
       address_required: config.requireAddress,
       city_required: config.requireCity,
@@ -392,8 +396,7 @@ export async function saveCheckoutConfig(
       cod_enabled: config.codEnabled,
       thank_you_message: config.thankYouMessage,
       default_order_status: statusToDb[config.defaultOrderStatus],
-    })
-    .eq("store_id", storeId);
+    }, { onConflict: "store_id" });
   if (settingsError) throw settingsError;
   const { error: pageError } = await supabase
     .from("checkout_pages")

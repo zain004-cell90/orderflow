@@ -44,6 +44,7 @@ import type {
   OrderStatus,
   Product,
   StoreSettings,
+  CheckoutConfig,
 } from "@/lib/types";
 
 type ToastTone = "success" | "error" | "info";
@@ -69,6 +70,7 @@ type DashboardContextValue = {
   customers: Customer[];
   loading: boolean;
   storeSettings: StoreSettings;
+  checkoutConfig: CheckoutConfig;
   notifications: Notification[];
   unreadCount: number;
   formatMoney: (amount: number) => string;
@@ -80,6 +82,7 @@ type DashboardContextValue = {
   deleteProduct: (id: EntityId) => void;
   updateCustomer: (id: EntityId, patch: Partial<Customer>) => void;
   updateStoreSettings: (patch: Partial<StoreSettings>) => void;
+  updateCheckoutConfig: (config: CheckoutConfig) => void;
   addNotification: (notification: NewNotification) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -131,6 +134,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>(emptyCustomers);
   const [storeSettings, setStoreSettings] =
     useState<StoreSettings>(initialSettings);
+  const [checkoutConfig, setCheckoutConfig] =
+    useState<CheckoutConfig>(defaultCheckoutConfig);
   const [notifications, setNotifications] =
     useState<Notification[]>(initialNotifications);
   const [loading, setLoading] = useState(true);
@@ -170,13 +175,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       );
       setStoreSettings(data.storeSettings || initialSettings);
       if (data.checkoutConfig) {
+        setCheckoutConfig(data.checkoutConfig);
         writeStorage(storageKeys.checkout, data.checkoutConfig);
       } else if (data.store) {
-        writeStorage(storageKeys.checkout, {
+        const fallbackCheckout = {
           ...defaultCheckoutConfig,
           storeId: data.store.slug || data.store.id,
           storeName: data.store.name,
-        });
+        };
+        setCheckoutConfig(fallbackCheckout);
+        writeStorage(storageKeys.checkout, fallbackCheckout);
       }
     } catch (error) {
       if (
@@ -211,6 +219,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setProducts(readProducts(emptyProducts));
       setCustomers(readCustomers(emptyCustomers));
       setStoreSettings(readSettings(initialSettings));
+      setCheckoutConfig(readStorage(storageKeys.checkout, defaultCheckoutConfig));
       setNotifications(
         readNotifications(initialNotifications).filter((notification) =>
           isAllowedNotification(notification.type),
@@ -240,6 +249,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }, [storeSettings, hydrated, supabase]);
   useEffect(() => {
     if (!hydrated || supabase) return;
+    writeStorage(storageKeys.checkout, checkoutConfig);
+  }, [checkoutConfig, hydrated, supabase]);
+  useEffect(() => {
+    if (!hydrated || supabase) return;
     writeStorage(storageKeys.notifications, notifications);
   }, [notifications, hydrated, supabase]);
 
@@ -257,6 +270,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setCustomers(readCustomers(emptyCustomers));
       if (!key || key === storageKeys.settings)
         setStoreSettings(readSettings(initialSettings));
+      if (!key || key === storageKeys.checkout)
+        setCheckoutConfig(readStorage(storageKeys.checkout, defaultCheckoutConfig));
       if (!key || key === storageKeys.notifications)
         setNotifications(
           readNotifications(initialNotifications).filter((notification) =>
@@ -701,6 +716,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       customers,
       loading,
       storeSettings,
+      checkoutConfig,
       notifications,
       unreadCount: notifications.filter((item) => !item.isRead).length,
       toasts,
@@ -715,6 +731,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       deleteProduct,
       updateCustomer,
       updateStoreSettings,
+      updateCheckoutConfig: (config) => {
+        setCheckoutConfig(config);
+        writeStorage(storageKeys.checkout, config);
+      },
       addNotification,
       markNotificationRead: (id) => {
         setNotifications((items) =>
@@ -753,6 +773,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       addProduct,
       confirm,
       customers,
+      checkoutConfig,
       deleteOrder,
       deleteProduct,
       loading,

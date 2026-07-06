@@ -45,6 +45,8 @@ export function CheckoutPage() {
     addNotification,
     askConfirm,
     storeSettings,
+    checkoutConfig,
+    updateCheckoutConfig,
   } = useDashboard();
   const [saved, setSaved] = useState<CheckoutConfig>(defaultCheckoutConfig);
   const [draft, setDraft] = useState<CheckoutConfig>(defaultCheckoutConfig);
@@ -54,12 +56,14 @@ export function CheckoutPage() {
   const [colorErrors, setColorErrors] = useState({ brand: "", button: "" });
   useEffect(() => {
     const id = window.setTimeout(() => {
-      const config = readCheckoutConfig(defaultCheckoutConfig);
+      const config = checkoutConfig?.storeId
+        ? checkoutConfig
+        : readCheckoutConfig(defaultCheckoutConfig);
       setSaved(config);
       setDraft(config);
     }, 0);
     return () => window.clearTimeout(id);
-  }, []);
+  }, [checkoutConfig]);
   const selectedProduct = useMemo(
     () => products.find((x) => x.id === draft.selectedProductId) || products[0],
     [products, draft.selectedProductId],
@@ -118,6 +122,7 @@ export function CheckoutPage() {
       ...draft,
       storeName: sanitizeText(draft.storeName, 80),
       thankYouMessage: sanitizeMultiline(draft.thankYouMessage, 500),
+      selectedProductId: draft.selectedProductId || products[0]?.id || "",
       customFields: draft.customFields.map((field) => ({
         ...field,
         label: sanitizeText(field.label, 80),
@@ -149,6 +154,7 @@ export function CheckoutPage() {
         await saveCheckoutConfig(supabase, store.id, checkoutPage.id, config);
       }
       writeStorage(storageKeys.checkout, config);
+      updateCheckoutConfig(config);
       setSaved(config);
       setDraft(config);
       toast("Checkout page saved");
@@ -176,7 +182,7 @@ export function CheckoutPage() {
       },
     });
   const copy = async () => {
-    if (!storeSettings.storeName.trim()) {
+    if (!draft.storeName.trim() && !storeSettings.storeName.trim()) {
       setProfileGate(true);
       return;
     }
@@ -197,7 +203,7 @@ export function CheckoutPage() {
     }
   };
   const openCheckout = () => {
-    if (!storeSettings.storeName.trim()) {
+    if (!draft.storeName.trim() && !storeSettings.storeName.trim()) {
       setProfileGate(true);
       return;
     }

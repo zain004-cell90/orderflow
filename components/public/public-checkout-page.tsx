@@ -109,9 +109,15 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
           );
         const query = isUuid ? baseQuery.eq("id", storeId) : baseQuery.eq("slug", storeId);
         query
-          .eq("status", "active")
           .maybeSingle()
-          .then(({ data }) => {
+          .then(({ data, error }) => {
+            if (error) {
+              setErrors({
+                form: "Could not load this checkout page. Please refresh or contact the seller.",
+              });
+              setReady(true);
+              return;
+            }
             if (!data) {
               setReady(true);
               return;
@@ -122,7 +128,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             const page = Array.isArray(data.checkout_pages)
               ? data.checkout_pages[0]
               : data.checkout_pages;
-            const loadedProducts = (data.products || []).map(mapProduct);
+            const loadedProducts: Product[] = (data.products || []).map(mapProduct);
             setConfig(
               page
                 ? mapCheckoutConfig(data, page, settingsRow, page.checkout_fields || [])
@@ -130,7 +136,8 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             );
             setProducts(loadedProducts);
             setSettings(mapStoreSettings(data, settingsRow));
-            setSelectedId(page?.selected_product_id || loadedProducts[0]?.id || "");
+            const firstActive = loadedProducts.find((item) => item.status === "Active");
+            setSelectedId(page?.selected_product_id || firstActive?.id || "");
             setReady(true);
           });
         return;
@@ -161,7 +168,10 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
   }, [product?.id, product?.sizes, product?.colors]);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!product) return;
+    if (!product) {
+      setErrors({ form: "No active product is available for this checkout page." });
+      return;
+    }
     const storedOrders = readOrders([]);
     const store =
       readMockStores().find((item) => item.id === storeId) ||
@@ -477,14 +487,24 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             <select
               value={product?.id || 0}
               onChange={(e) => setSelectedId(e.target.value)}
+              disabled={!activeProducts.length}
             >
-              {activeProducts.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
+              {activeProducts.length ? (
+                activeProducts.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))
+              ) : (
+                <option value="">No active products yet</option>
+              )}
             </select>
           </label>
+          {!activeProducts.length && (
+            <div className="public-error public-form-error" role="alert">
+              This store has no active products available right now.
+            </div>
+          )}
           {product && (
             <div className="public-product-card">
               <div
@@ -551,6 +571,11 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             </div>
             <ShieldCheck size={24} />
           </div>
+          {errors.form && (
+            <div className="public-error public-form-error" role="alert">
+              {errors.form}
+            </div>
+          )}
           <div className="public-form-grid">
             <PublicInput
               name="customerName"
@@ -625,7 +650,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             <span>Total Amount</span>
             <strong>{formatCurrency(total, settings.currency)}</strong>
           </div>
-          <button className="public-confirm-button" disabled={submitting}>
+          <button className="public-confirm-button" disabled={submitting || !product}>
             {submitting
               ? "Submitting order..."
               : config.codEnabled
