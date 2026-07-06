@@ -2,6 +2,8 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   Check,
   ExternalLink,
   ImageUp,
@@ -113,6 +115,18 @@ export function CheckoutPage() {
     patch({
       customFields: draft.customFields.filter((field) => field.id !== id),
     });
+  const moveField = (id: string, direction: -1 | 1) => {
+    const index = draft.customFields.findIndex((field) => field.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= draft.customFields.length)
+      return;
+    const nextFields = [...draft.customFields];
+    [nextFields[index], nextFields[nextIndex]] = [
+      nextFields[nextIndex],
+      nextFields[index],
+    ];
+    patch({ customFields: nextFields });
+  };
   const save = async () => {
     if (colorErrors.brand || colorErrors.button) {
       toast("Fix invalid colors before saving", "error");
@@ -372,12 +386,16 @@ export function CheckoutPage() {
             </div>
             {draft.customFields.length ? (
               <div className="checkout-field-list">
-                {draft.customFields.map((field) => (
+                {draft.customFields.map((field, index) => (
                   <CheckoutFieldEditor
                     key={field.id}
                     field={field}
                     onChange={(next) => updateField(field.id, next)}
                     onDelete={() => deleteField(field.id)}
+                    onMoveUp={() => moveField(field.id, -1)}
+                    onMoveDown={() => moveField(field.id, 1)}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < draft.customFields.length - 1}
                   />
                 ))}
               </div>
@@ -512,10 +530,18 @@ function CheckoutFieldEditor({
   field,
   onChange,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
 }: {
   field: CheckoutField;
   onChange: (next: Partial<CheckoutField>) => void;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   return (
     <article className="checkout-field-card">
@@ -563,6 +589,26 @@ function CheckoutFieldEditor({
         )}
       </div>
       <div className="checkout-field-actions">
+        <div className="checkout-field-position">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            aria-label={`Move ${field.label || "custom field"} up`}
+          >
+            <ArrowUp size={13} />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            aria-label={`Move ${field.label || "custom field"} down`}
+          >
+            <ArrowDown size={13} />
+          </button>
+        </div>
         <FieldToggle
           label="Required"
           checked={field.required}
@@ -636,6 +682,22 @@ function CheckoutPreview({
             <small>Cash on Delivery</small>
           </div>
         </div>
+        {product?.customFields.filter((field) => field.enabled ?? true).length ? (
+          <div className="builder-product-options">
+            <small>Product options</small>
+            <div className="builder-form-grid">
+              {product.customFields
+                .filter((field) => field.enabled ?? true)
+                .map((field) => (
+                  <PreviewInput
+                    key={field.id}
+                    label={`${field.name}${field.required ? " *" : ""}`}
+                    full={field.type === "Textarea"}
+                  />
+                ))}
+            </div>
+          </div>
+        ) : null}
         <div className="builder-form-grid">
           <PreviewInput label="Full Name" />
           <PreviewInput label="Phone Number" />
@@ -648,9 +710,6 @@ function CheckoutPreview({
           {config.optionalFields.giftNote && (
             <PreviewInput label="Gift Note" full />
           )}
-          {product?.customFields.map((field) => (
-            <PreviewInput key={field.id} label={field.name} />
-          ))}
           {config.customFields
             .filter((x) => x.enabled)
             .map((field) => (

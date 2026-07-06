@@ -94,6 +94,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [limitReached, setLimitReached] = useState(false);
+  const formId = "public-checkout-form";
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (isSupabaseConfigured()) {
@@ -209,6 +210,12 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
         if (!data.get(`checkout-${field.id}`))
           nextErrors[`checkout-${field.id}`] = "This field is required.";
       });
+    product.customFields
+      .filter((field) => (field.enabled ?? true) && field.required)
+      .forEach((field) => {
+        if (!data.get(`product-${field.id}`))
+          nextErrors[`product-${field.id}`] = "This field is required.";
+      });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setSubmitting(true);
@@ -223,10 +230,12 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
     const orderNumber = `ORD-${nextNumber}`;
     const now = new Date();
     const productFields = Object.fromEntries(
-      product.customFields.map((field) => [
-        field.name,
-        sanitizeText(data.get(`product-${field.id}`), 200),
-      ]),
+      product.customFields
+        .filter((field) => field.enabled ?? true)
+        .map((field) => [
+          field.name,
+          sanitizeText(data.get(`product-${field.id}`), 200),
+        ]),
     );
     const checkoutFields = Object.fromEntries(
       config.customFields
@@ -428,7 +437,15 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
   if (!ready) return <PublicCheckoutSkeleton />;
   if (limitReached)
     return (
-      <main className="public-checkout-page">
+      <main
+        className="public-checkout-page"
+        style={
+          {
+            "--checkout-accent": config.brandColor,
+            "--checkout-button": config.buttonColor,
+          } as React.CSSProperties
+        }
+      >
         <header className="public-checkout-header">
           <Link href="/" className="checkout-public-brand">
             <i>
@@ -436,7 +453,9 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             </i>
             <b>{config.storeName}</b>
           </Link>
-          <Link href="/track">Track Order</Link>
+          <Link className="public-track-link" href="/track">
+            Track Order
+          </Link>
         </header>
         <section className="public-limit-state card">
           <Package size={34} />
@@ -472,7 +491,9 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
           )}
           <b>{config.storeName}</b>
         </Link>
-        <Link href="/track">Track Order</Link>
+        <Link className="public-track-link" href="/track">
+          Track Order
+        </Link>
       </header>
       <div className="public-checkout-shell">
         <section className="public-product-panel">
@@ -561,9 +582,27 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
                 </button>
               </span>
             </label>
+            {product?.customFields
+              .filter((field) => field.enabled ?? true)
+              .map((field) => (
+                <DynamicField
+                  key={field.id}
+                  field={{
+                    id: field.id,
+                    label: field.name,
+                    type: field.type,
+                    required: field.required || false,
+                    enabled: field.enabled ?? true,
+                    options: field.options,
+                  }}
+                  name={`product-${field.id}`}
+                  error={errors[`product-${field.id}`]}
+                  formId={formId}
+                />
+              ))}
           </div>
         </section>
-        <form className="public-customer-form" onSubmit={submit}>
+        <form id={formId} className="public-customer-form" onSubmit={submit}>
           <div className="public-form-head">
             <div>
               <h2>Delivery details</h2>
@@ -609,21 +648,6 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             {config.optionalFields.giftNote && (
               <PublicInput name="giftNote" label="Gift Note" textarea full />
             )}
-            {product?.customFields.map((field) => (
-              <DynamicField
-                key={field.id}
-                field={{
-                  id: field.id,
-                  label: field.name,
-                  type: field.type,
-                  required: false,
-                  enabled: true,
-                  options: field.options,
-                }}
-                name={`product-${field.id}`}
-                error={errors[`product-${field.id}`]}
-              />
-            ))}
             {config.customFields
               .filter((x) => x.enabled)
               .map((field) => (
@@ -717,10 +741,12 @@ function DynamicField({
   field,
   name,
   error,
+  formId,
 }: {
   field: CheckoutField;
   name: string;
   error?: string;
+  formId?: string;
 }) {
   const errorId = `${name}-error`;
   return (
@@ -734,6 +760,7 @@ function DynamicField({
       {field.type === "Dropdown" ? (
         <select
           name={name}
+          form={formId}
           defaultValue=""
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
@@ -748,6 +775,7 @@ function DynamicField({
           <input
             type="checkbox"
             name={name}
+            form={formId}
             value="Yes"
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : undefined}
@@ -757,6 +785,7 @@ function DynamicField({
       ) : field.type === "Textarea" ? (
         <textarea
           name={name}
+          form={formId}
           maxLength={1000}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
@@ -764,6 +793,7 @@ function DynamicField({
       ) : (
         <input
           name={name}
+          form={formId}
           maxLength={300}
           type={
             field.type === "Number"

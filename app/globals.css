@@ -858,3 +858,51 @@ p, h1, h2, h3, h4, a, button, span, td, th, label { overflow-wrap: anywhere; }
 .dashboard-layout .notifications-menu {
   width: min(390px, calc(100vw - 24px));
 }
+
+.checkout-field-position {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+.checkout-field-position .icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+.builder-product-options {
+  margin: -6px 0 18px;
+  padding: 12px;
+  border: 1px dashed #d9dae5;
+  border-radius: 12px;
+  background: #fafaff;
+}
+.builder-product-options > small {
+  display: block;
+  margin-bottom: 8px;
+  color: #777587;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.public-track-link {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--checkout-button, var(--checkout-accent, #3525cd));
+  color: #fff !important;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 18px
+    color-mix(
+      in srgb,
+      var(--checkout-button, var(--checkout-accent, #3525cd)) 18%,
+      transparent
+    );
+}
+.public-option-grid .full {
+  grid-column: 1 / -1;
+}
