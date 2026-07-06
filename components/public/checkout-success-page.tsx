@@ -221,15 +221,22 @@ export function CheckoutSuccessPage() {
 
 function mapTrackedOrder(row: any, store: string, phone: string): Order {
   const status = statusToUi[row.status] || "Order Received";
+  const selected = row.selected_options || {};
+  const productCustomFields =
+    selected && typeof selected.custom_fields === "object" && !Array.isArray(selected.custom_fields)
+      ? selected.custom_fields
+      : {};
   return {
     id: row.order_number,
     orderNumber: row.order_number,
     storeId: store,
-    customer: "Customer",
-    customerName: "Customer",
-    initials: "CU",
-    phone,
+    customer: row.customer_name || "Customer",
+    customerName: row.customer_name || "Customer",
+    initials: initials(row.customer_name || "Customer"),
+    phone: row.phone || phone,
+    email: row.email || "",
     product: row.product_name,
+    productId: row.product_id,
     productName: row.product_name,
     productImage: row.product_image || "",
     date: new Date(row.created_at).toLocaleDateString("en-US", {
@@ -242,9 +249,26 @@ function mapTrackedOrder(row: any, store: string, phone: string): Order {
     totalAmount: Number(row.total_amount || 0),
     status,
     quantity: row.quantity || 1,
-    size: row.size || "",
-    color: row.color || "",
+    size: selected.Size || selected.size || "",
+    color: selected.Color || selected.color || "",
+    variant: [selected.Size || selected.size, selected.Color || selected.color]
+      .filter(Boolean)
+      .join(" · "),
+    city: row.city || "",
+    address: row.address || "",
     paymentMethod: "Cash on Delivery",
+    productCustomFields: Object.fromEntries(
+      Object.entries(productCustomFields).map(([key, value]) => [
+        key,
+        displayValue(value),
+      ]),
+    ),
+    checkoutCustomFields: Object.fromEntries(
+      Object.entries(row.custom_fields || {}).map(([key, value]) => [
+        key,
+        displayValue(value),
+      ]),
+    ),
     timeline: (row.timeline || []).map((item: any) => ({
       status: statusToUi[item.status] || "Order Received",
       label: statusToUi[item.status] || "Order Received",
@@ -267,4 +291,25 @@ function fieldLabel(id: string, config: CheckoutConfig, order: Order) {
 }
 function pretty(value: string) {
   return value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if (Array.isArray(value)) return value.map(displayValue).filter(Boolean).join(", ");
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${pretty(key)}: ${displayValue(item)}`)
+      .filter((item) => !item.endsWith(": "))
+      .join(", ");
+  }
+  return String(value);
 }

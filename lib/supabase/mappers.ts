@@ -164,6 +164,16 @@ export function mapProduct(row: any): Product {
 export function mapOrder(row: any): Order {
   const firstItem = Array.isArray(row.order_items) ? row.order_items[0] : null;
   const selected = firstItem?.selected_options || {};
+  const selectedCustomFields =
+    selected && typeof selected.custom_fields === "object" && !Array.isArray(selected.custom_fields)
+      ? selected.custom_fields
+      : {};
+  const variantParts = [
+    selected.Size || selected.size,
+    selected.Color || selected.color,
+    selected.Variant || selected.variant,
+    selected.variant_label,
+  ].filter((value) => typeof value === "string" && value.trim());
   const timeline = (Array.isArray(row.order_timeline) ? row.order_timeline : []).map(
     (item: any) => ({
       status: statusToUi[item.status] || "Order Received",
@@ -194,20 +204,44 @@ export function mapOrder(row: any): Order {
     status: statusToUi[row.status] || "Order Received",
     address: row.address || "",
     quantity: Number(firstItem?.quantity || 1),
-    variant: Object.values(selected).filter(Boolean).join(" · "),
+    variant: variantParts.join(" · "),
     size: selected.Size || selected.size || "",
     color: selected.Color || selected.color || "",
     city: row.city || "",
     paymentMethod: "Cash on Delivery",
     notes: row.notes || "",
+    productCustomFields: Object.fromEntries(
+      Object.entries(selectedCustomFields).map(([key, value]) => [
+        key,
+        formatFieldValue(value),
+      ]),
+    ),
     checkoutCustomFields: Object.fromEntries(
       (row.order_custom_field_values || []).map((field: any) => [
         field.field_label,
-        typeof field.value === "string" ? field.value : JSON.stringify(field.value),
+        formatFieldValue(field.value),
       ]),
     ),
     timeline,
   };
+}
+
+function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if (Array.isArray(value)) return value.map(formatFieldValue).filter(Boolean).join(", ");
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${prettyKey(key)}: ${formatFieldValue(item)}`)
+      .filter((item) => !item.endsWith(": "))
+      .join(", ");
+  }
+  return String(value);
+}
+
+function prettyKey(value: string): string {
+  return value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function mapCustomer(row: any): Customer {

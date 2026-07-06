@@ -1090,6 +1090,7 @@ function OrderDetailsDrawer({
 }) {
   const { formatMoney } = useDashboard();
   const next = nextStatus(order.status);
+  const [productInfoOpen, setProductInfoOpen] = useState(false);
   return (
     <div
       className="drawer-backdrop"
@@ -1144,6 +1145,17 @@ function OrderDetailsDrawer({
               value={`${order.address || "—"}, ${order.city || "—"}`}
             />
           </div>
+          <button
+            type="button"
+            className="btn-secondary order-product-toggle"
+            onClick={() => setProductInfoOpen((value) => !value)}
+          >
+            <Eye size={14} />
+            {productInfoOpen ? "Hide Product Info" : "View Product Info"}
+          </button>
+          {productInfoOpen && (
+            <ProductInfoSection order={order} formatMoney={formatMoney} />
+          )}
           <div className="drawer-info-grid">
             <span>
               <small>Payment Method</small>
@@ -1232,6 +1244,64 @@ function Detail({
     </div>
   );
 }
+function ProductInfoSection({
+  order,
+  formatMoney,
+}: {
+  order: Order;
+  formatMoney: (amount: number) => string;
+}) {
+  const customFields = Object.entries(order.productCustomFields || {}).filter(
+    ([, value]) => Boolean(displayFieldValue(value).trim()),
+  );
+  return (
+    <section className="order-product-info-card">
+      <div className="order-product-info-head">
+        <span
+          className="order-product-info-image"
+          style={{ backgroundImage: `url(${order.productImage || ""})` }}
+        >
+          {!order.productImage && <Package size={18} />}
+        </span>
+        <div>
+          <small>Product</small>
+          <b>{order.productName || order.product}</b>
+        </div>
+        <strong>{formatMoney(order.totalAmount || order.amount)}</strong>
+      </div>
+      <div className="order-product-info-grid">
+        <InfoItem label="Quantity" value={String(order.quantity || 1)} />
+        <InfoItem label="Size" value={order.size || "—"} />
+        <InfoItem label="Color" value={order.color || "—"} />
+        <InfoItem label="Variant" value={order.variant || "Standard"} full />
+        {customFields.map(([label, value]) => (
+          <InfoItem
+            key={label}
+            label={pretty(label)}
+            value={displayFieldValue(value)}
+            full
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+function InfoItem({
+  label,
+  value,
+  full = false,
+}: {
+  label: string;
+  value: string;
+  full?: boolean;
+}) {
+  return (
+    <span className={full ? "full" : ""}>
+      <small>{label}</small>
+      <b>{value}</b>
+    </span>
+  );
+}
 function Pagination({
   page,
   pages,
@@ -1318,6 +1388,22 @@ function nextStatus(status: OrderStatus): OrderStatus | null {
   ];
   const index = flow.indexOf(status);
   return index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
+}
+function pretty(value: string) {
+  return value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+function displayFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if (Array.isArray(value)) return value.map(displayFieldValue).filter(Boolean).join(", ");
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${pretty(key)}: ${displayFieldValue(item)}`)
+      .filter((item) => !item.endsWith(": "))
+      .join(", ");
+  }
+  return String(value);
 }
 function stop(e: MouseEvent) {
   e.stopPropagation();

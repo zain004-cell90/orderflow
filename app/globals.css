@@ -906,3 +906,67 @@ p, h1, h2, h3, h4, a, button, span, td, th, label { overflow-wrap: anywhere; }
 .public-option-grid .full {
   grid-column: 1 / -1;
 }
+.order-product-toggle {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.order-product-info-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #e2e3ee;
+  border-radius: 14px;
+  background: #fafaff;
+}
+.order-product-info-head {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.order-product-info-image {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 10px;
+  background: #eceef6 center/cover;
+  color: #777587;
+}
+.order-product-info-head small,
+.order-product-info-grid small {
+  display: block;
+  color: #777587;
+  font-size: 11px;
+}
+.order-product-info-head b,
+.order-product-info-grid b {
+  display: block;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: #141b2b;
+  font-size: 12px;
+}
+.order-product-info-head strong {
+  color: #3525cd;
+  font-size: 13px;
+}
+.order-product-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.order-product-info-grid > span {
+  padding: 10px;
+  border: 1px solid #ececf4;
+  border-radius: 10px;
+  background: #fff;
+}
+.order-product-info-grid .full {
+  grid-column: 1 / -1;
+}
