@@ -29,7 +29,7 @@ export interface StoreSettings{storeName:string;businessPhone:string;businessEma
 export interface AccountSettings{fullName:string;email:string;avatar:string}
 export type BillingPlan="Free"|"Starter"|"Growth";
 export interface BillingSettings{plan:BillingPlan;storageUsedMb:number;lastInvoiceDate:string}
-export interface AutomationSettings{autoCreateCustomer:boolean;autoMarkRepeat:boolean;lowStockAlert:boolean;dailyOrderSummary:boolean;trackingPageEnabled:boolean}
+export interface AutomationSettings{autoCreateCustomer:boolean;autoMarkRepeat:boolean;lowStockAlert:boolean;trackingPageEnabled:boolean}
 
 export type UserPlan=BillingPlan;
 export type UserRole="user"|"admin";

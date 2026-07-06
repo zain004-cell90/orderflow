@@ -454,6 +454,11 @@ export function AuthProvider({
           { onConflict: "id" },
         );
       }
+      writeStorage(storageKeys.account, {
+        fullName: name.trim(),
+        email: normalized,
+        avatar: "",
+      });
       await loadSupabaseAuthState(normalized);
       return {
         ok: true,
@@ -495,6 +500,11 @@ export function AuthProvider({
     setStores(nextStores);
     writeStorage(storageKeys.users, nextUsers);
     writeStorage(storageKeys.stores, nextStores);
+    writeStorage(storageKeys.account, {
+      fullName: name.trim(),
+      email: normalized,
+      avatar: "",
+    });
     begin(normalized, true);
     return { ok: true };
   };

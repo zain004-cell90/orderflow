@@ -53,7 +53,18 @@ export function CheckoutSuccessPage() {
         window.sessionStorage.getItem("orderflow.last-order");
       const store = params.get("store");
       const phone = params.get("phone");
-      setConfig(readCheckoutConfig(defaultCheckoutConfig));
+      const sessionConfig = window.sessionStorage.getItem(
+        "orderflow.last-checkout-config",
+      );
+      try {
+        setConfig(
+          sessionConfig
+            ? (JSON.parse(sessionConfig) as CheckoutConfig)
+            : readCheckoutConfig(defaultCheckoutConfig),
+        );
+      } catch {
+        setConfig(readCheckoutConfig(defaultCheckoutConfig));
+      }
       setSettings(readSettings(initialSettings));
       if (isSupabaseConfigured() && store && phone) {
         const supabase = createSupabaseBrowserClient();

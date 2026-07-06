@@ -906,6 +906,30 @@ p, h1, h2, h3, h4, a, button, span, td, th, label { overflow-wrap: anywhere; }
 .public-option-grid .full {
   grid-column: 1 / -1;
 }
+.public-multi-products {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+.public-cart-item {
+  padding: 14px;
+  border: 1px solid #e2e3ec;
+  border-radius: 15px;
+  background: #fafaff;
+}
+.public-cart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #141b2b;
+  font-size: 12px;
+}
+.public-cart-head button {
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 800;
+}
 .order-product-toggle {
   display: inline-flex;
   width: 100%;

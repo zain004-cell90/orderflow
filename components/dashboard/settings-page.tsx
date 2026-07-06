@@ -7,7 +7,6 @@ import {
   Check,
   Copy,
   CreditCard,
-  Download,
   ExternalLink,
   ImageUp,
   LockKeyhole,
@@ -16,9 +15,7 @@ import {
   Store,
   Trash2,
   UserRound,
-  X,
 } from "lucide-react";
-import { downloadCsv } from "@/lib/csv";
 import { orderLimitFor, storageLimitLabel } from "@/lib/mock-auth";
 import { defaultCheckoutConfig } from "@/lib/mock-data";
 import {
@@ -46,6 +43,9 @@ import type {
 import { DashboardShell } from "./dashboard-shell";
 import { useDashboard } from "./dashboard-store";
 import { useAuth } from "@/components/auth/auth-provider";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { saveCheckoutConfig } from "@/lib/supabase/data";
 
 type Tab = "store" | "checkout" | "account" | "billing";
 const tabs = [
@@ -119,6 +119,8 @@ function StoreSettingsPanel() {
     orders,
     products,
     customers,
+    checkoutConfig,
+    updateCheckoutConfig,
   } = useDashboard();
   const [store, setStore] = useState<StoreSettings>(storeSettings);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -185,6 +187,15 @@ function StoreSettingsPanel() {
     const next = { ...automation, [key]: !automation[key] };
     setAutomation(next);
     writeStorage(storageKeys.automation, next);
+    if (key === "trackingPageEnabled") {
+      const checkout = {
+        ...checkoutConfig,
+        trackingEnabled: next.trackingPageEnabled,
+        updatedAt: new Date().toISOString(),
+      };
+      updateCheckoutConfig(checkout);
+      writeStorage(storageKeys.checkout, checkout);
+    }
     toast("Automation setting saved", "info");
   };
   return (
@@ -307,12 +318,6 @@ function StoreSettingsPanel() {
           onToggle={() => toggleAutomation("lowStockAlert")}
         />
         <AutomationToggle
-          label="Daily order summary"
-          text="Prepare a daily order summary notification."
-          value={automation.dailyOrderSummary}
-          onToggle={() => toggleAutomation("dailyOrderSummary")}
-        />
-        <AutomationToggle
           label="Order tracking page enabled"
           text="Allow customers to use the public tracking page."
           value={automation.trackingPageEnabled}
@@ -335,19 +340,27 @@ function StoreSettingsPanel() {
 }
 
 function CheckoutSettingsPanel() {
-  const { toast, addNotification, askConfirm } = useDashboard();
+  const {
+    toast,
+    addNotification,
+    askConfirm,
+    checkoutConfig,
+    updateCheckoutConfig,
+  } = useDashboard();
   const [saved, setSaved] = useState<CheckoutConfig>(defaultCheckoutConfig);
   const [config, setConfig] = useState<CheckoutConfig>(defaultCheckoutConfig);
   const patch = (next: Partial<CheckoutConfig>) =>
     setConfig((value) => ({ ...value, ...next }));
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const loaded = readCheckoutConfig(defaultCheckoutConfig);
+      const loaded = checkoutConfig?.storeId
+        ? checkoutConfig
+        : readCheckoutConfig(defaultCheckoutConfig);
       setSaved(loaded);
       setConfig(loaded);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [checkoutConfig]);
   const updateField = (id: string, next: Partial<CheckoutField>) =>
     patch({
       customFields: config.customFields.map((field) =>
@@ -372,12 +385,46 @@ function CheckoutSettingsPanel() {
     patch({
       customFields: config.customFields.filter((field) => field.id !== id),
     });
-  const save = () => {
+  const save = async () => {
     const next = { ...config, updatedAt: new Date().toISOString() };
-    writeStorage(storageKeys.checkout, next);
-    setSaved(next);
-    setConfig(next);
-    toast("Checkout settings saved");
+    try {
+      if (isSupabaseConfigured()) {
+        const supabase = createSupabaseBrowserClient();
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            next.storeId,
+          );
+        const storeQuery = supabase
+          .from("stores")
+          .select("id, checkout_pages(id)")
+          .limit(1);
+        const { data: store, error } = await (isUuid
+          ? storeQuery.eq("id", next.storeId).single()
+          : storeQuery.eq("slug", next.storeId).single());
+        if (error) throw error;
+        const page = Array.isArray(store.checkout_pages)
+          ? store.checkout_pages[0]
+          : store.checkout_pages;
+        if (!page?.id) throw new Error("Checkout page was not found.");
+        await saveCheckoutConfig(supabase, store.id, page.id, next);
+      }
+      writeStorage(storageKeys.checkout, next);
+      const automation = readStorage(
+        storageKeys.automation,
+        defaultAutomationSettings,
+      );
+      writeStorage(storageKeys.automation, {
+        ...automation,
+        trackingPageEnabled: next.trackingEnabled,
+      });
+      updateCheckoutConfig(next);
+      setSaved(next);
+      setConfig(next);
+      toast("Checkout settings saved");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Could not save checkout settings.", "error");
+      return;
+    }
     addNotification({
       title: "Checkout settings updated",
       message: "Public checkout behavior and fields were saved.",
@@ -557,8 +604,11 @@ function CheckoutSettingsPanel() {
 
 function AccountSettingsPanel() {
   const { toast, addNotification } = useDashboard();
+  const { user } = useAuth();
   const [account, setAccount] = useState<AccountSettings>(
-    defaultAccountSettings,
+    user
+      ? { fullName: user.name, email: user.email, avatar: "" }
+      : defaultAccountSettings,
   );
   const [passwords, setPasswords] = useState({
     current: "",
@@ -569,11 +619,18 @@ function AccountSettingsPanel() {
   useEffect(() => {
     const timer = window.setTimeout(
       () =>
-        setAccount(readStorage(storageKeys.account, defaultAccountSettings)),
+        setAccount(
+          readStorage(
+            storageKeys.account,
+            user
+              ? { fullName: user.name, email: user.email, avatar: "" }
+              : defaultAccountSettings,
+          ),
+        ),
       0,
     );
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [user]);
   const saveProfile = () => {
     const next: Record<string, string> = {};
     if (!account.fullName.trim()) next.name = "Full name is required.";
@@ -614,28 +671,10 @@ function AccountSettingsPanel() {
       actionUrl: "/dashboard/settings?tab=account",
     });
   };
-  const avatar = (file?: File) =>
-    handleImage(file, toast, (result) => {
-      setAccount((value) => ({ ...value, avatar: result }));
-      addNotification({
-        title: "Logo uploaded",
-        message: "Your profile avatar was updated.",
-        type: "Settings Updated",
-        actionUrl: "/dashboard/settings?tab=account",
-      });
-    });
   return (
     <section className="settings-card card">
       <h3>Account Settings</h3>
-      <p>Update your frontend profile, avatar, and password.</p>
-      <div className="account-avatar-row">
-        <LogoUploader
-          value={account.avatar}
-          onUpload={avatar}
-          onRemove={() => setAccount((value) => ({ ...value, avatar: "" }))}
-          compact
-        />
-      </div>
+      <p>Update your frontend profile and password.</p>
       <div className="settings-form">
         <SettingsField label="Full Name" error={errors.name}>
           <input
@@ -720,13 +759,12 @@ function AccountSettingsPanel() {
 }
 
 function BillingPanel() {
-  const { user } = useAuth();
+  const { user, updateCurrentPlan } = useAuth();
   const { orders, products, customers, toast, addNotification } =
     useDashboard();
   const [billing, setBilling] = useState<BillingSettings>(
     defaultBillingSettings,
   );
-  const [modal, setModal] = useState<"upgrade" | "manage" | null>(null);
   const currentPlan = user?.plan || billing.plan;
   useEffect(() => {
     const timer = window.setTimeout(
@@ -743,43 +781,16 @@ function BillingPanel() {
     );
     return () => window.clearTimeout(timer);
   }, []);
-  const billingAction = (action: "upgrade" | "manage") => {
-    setModal(action);
+  const choosePlan = (plan: BillingSettings["plan"]) => {
+    updateCurrentPlan(plan);
+    const next = { ...billing, plan };
+    setBilling(next);
+    writeStorage(storageKeys.billing, next);
+    toast(`${plan} plan selected`);
     addNotification({
-      title: "Billing action clicked",
-      message:
-        action === "upgrade"
-          ? "Upgrade options were opened."
-          : "Billing management was opened.",
+      title: "Plan updated",
+      message: `${plan} order and storage limits are now active.`,
       type: "Settings Updated",
-      actionUrl: "/dashboard/settings?tab=billing",
-    });
-  };
-  const invoice = () => {
-    downloadCsv(
-      "orderflow-invoice.csv",
-      ["Invoice Field", "Value"],
-      [
-        ["Plan", currentPlan],
-        ["Invoice Date", billing.lastInvoiceDate],
-        [
-          "Amount",
-          currentPlan === "Starter"
-            ? "Rs 799"
-            : currentPlan === "Growth"
-              ? "Rs 1,999"
-              : "Rs 0",
-        ],
-        ["Orders", orders.length],
-        ["Products", products.length],
-        ["Customers", customers.length],
-      ],
-    );
-    toast("CSV exported successfully.");
-    addNotification({
-      title: "CSV export completed",
-      message: "Invoice CSV export completed.",
-      type: "Export Completed",
       actionUrl: "/dashboard/settings?tab=billing",
     });
   };
@@ -823,7 +834,7 @@ function BillingPanel() {
             action={() =>
               currentPlan === "Free"
                 ? toast("Free is your current plan", "info")
-                : billingAction("manage")
+                : choosePlan("Free")
             }
           />
           <PlanCard
@@ -840,8 +851,8 @@ function BillingPanel() {
             ]}
             action={() =>
               currentPlan === "Starter"
-                ? billingAction("manage")
-                : billingAction("upgrade")
+                ? toast("Starter is your current plan", "info")
+                : choosePlan("Starter")
             }
           />
           <PlanCard
@@ -855,75 +866,31 @@ function BillingPanel() {
               "Priority support",
               "Unlimited storage space for images",
             ]}
-            action={() => billingAction("upgrade")}
+            action={() =>
+              currentPlan === "Growth"
+                ? toast("Growth is your current plan", "info")
+                : choosePlan("Growth")
+            }
           />
         </div>
         <div className="settings-actions settings-action-cluster">
           <button
             className="btn-secondary"
-            onClick={() => billingAction("manage")}
+            onClick={() => toast(`${currentPlan} plan is active`, "info")}
           >
-            Manage Billing
-          </button>
-          <button className="btn-secondary" onClick={invoice}>
-            <Download size={13} />
-            Download Invoice
+            Current Plan: {currentPlan}
           </button>
           <button
             className="btn-primary"
-            onClick={() => billingAction("upgrade")}
+            disabled={currentPlan === "Growth"}
+            onClick={() =>
+              choosePlan(currentPlan === "Free" ? "Starter" : "Growth")
+            }
           >
-            Upgrade to Starter
+            {currentPlan === "Growth" ? "Growth Active" : "Upgrade Plan"}
           </button>
         </div>
       </section>
-      {modal && (
-        <div
-          className="modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="billing-modal-title"
-        >
-          <div className="modal billing-placeholder-modal">
-            <div className="modal-head">
-              <div>
-                <h2 id="billing-modal-title">
-                  {modal === "upgrade" ? "Choose a plan" : "Manage Billing"}
-                </h2>
-                <p>Billing integration will be connected in a later phase.</p>
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => setModal(null)}
-                aria-label="Close billing modal"
-              >
-                <X size={17} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="billing-coming-soon">
-                <CreditCard size={28} />
-                <h3>Billing will be connected soon.</h3>
-                <p>
-                  No payment or subscription change will be made in this
-                  frontend preview.
-                </p>
-              </div>
-            </div>
-            <div className="modal-foot">
-              <button
-                className="btn-primary ml-auto"
-                onClick={() => {
-                  setModal(null);
-                  toast("Billing preview closed", "info");
-                }}
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

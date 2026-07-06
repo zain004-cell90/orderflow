@@ -6,4 +6,4 @@ export const countryOptions:{code:CountryCode;label:string;currency:CurrencyCode
 export const currencyOptions:CurrencyCode[]=["PKR","INR","IDR","BRL","USD","GBP","AED","SAR"];
 export const defaultAccountSettings:AccountSettings={fullName:"Alex Rivera",email:"alex@orderflow.pk",avatar:""};
 export const defaultBillingSettings:BillingSettings={plan:"Free",storageUsedMb:18,lastInvoiceDate:"June 1, 2026"};
-export const defaultAutomationSettings:AutomationSettings={autoCreateCustomer:true,autoMarkRepeat:true,lowStockAlert:true,dailyOrderSummary:false,trackingPageEnabled:true};
+export const defaultAutomationSettings:AutomationSettings={autoCreateCustomer:true,autoMarkRepeat:true,lowStockAlert:true,trackingPageEnabled:true};

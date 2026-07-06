@@ -324,7 +324,7 @@ export function mapCheckoutConfig(store: any, page: any, settings: any, fields: 
     requirePhone: settings?.phone_required ?? true,
     requireAddress: settings?.address_required ?? true,
     requireCity: settings?.city_required ?? true,
-    allowMultipleProducts: settings?.allow_multiple_products ?? false,
+    allowMultipleProducts: settings?.allow_multiple_products ?? true,
     trackingEnabled: settings?.order_tracking_enabled ?? true,
     thankYouMessage: settings?.thank_you_message || "Thanks. Your order has been received.",
     defaultOrderStatus: statusToUi[settings?.default_order_status] || "Order Received",

@@ -75,6 +75,13 @@ const countryNames: Record<string, string> = {
   AE: "United Arab Emirates",
   SA: "Saudi Arabia",
 };
+type CheckoutCartItem = {
+  key: string;
+  productId: EntityId;
+  quantity: number;
+  size: string;
+  color: string;
+};
 
 export function PublicCheckoutPage({ storeId }: { storeId: string }) {
   const router = useRouter();
@@ -91,6 +98,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
   const [quantity, setQuantity] = useState(1);
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
+  const [cartItems, setCartItems] = useState<CheckoutCartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [limitReached, setLimitReached] = useState(false);
@@ -158,8 +166,38 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
     [products],
   );
   const product =
-    activeProducts.find((x) => x.id === selectedId) || activeProducts[0];
-  const total = (product?.price || 0) * quantity;
+    activeProducts.find((x) => sameId(x.id, selectedId)) || activeProducts[0];
+  const checkoutItems = useMemo(() => {
+    if (!config.allowMultipleProducts) {
+      return product
+        ? [
+            {
+              item: {
+                key: "single",
+                productId: product.id,
+                quantity,
+                size,
+                color,
+              },
+              product,
+            },
+          ]
+        : [];
+    }
+    return cartItems
+      .map((item) => ({
+        item,
+        product: activeProducts.find((value) => sameId(value.id, item.productId)),
+      }))
+      .filter(
+        (value): value is { item: CheckoutCartItem; product: Product } =>
+          Boolean(value.product),
+      );
+  }, [activeProducts, cartItems, color, config.allowMultipleProducts, product, quantity, size]);
+  const total = checkoutItems.reduce(
+    (sum, { item, product }) => sum + product.price * item.quantity,
+    0,
+  );
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setSize(product?.sizes[0] || "");
@@ -167,9 +205,44 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [product?.id, product?.sizes, product?.colors]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!activeProducts.length) {
+        setCartItems([]);
+        return;
+      }
+      setCartItems((items) => {
+        const valid = items.filter((item) =>
+          activeProducts.some((product) => sameId(product.id, item.productId)),
+        );
+        if (valid.length) return valid;
+        return [createCartItem(product || activeProducts[0])];
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeProducts, product]);
+  const setPrimaryProduct = (value: EntityId) => {
+    setSelectedId(value);
+    if (!config.allowMultipleProducts) return;
+    const nextProduct = activeProducts.find((item) => sameId(item.id, value));
+    if (!nextProduct) return;
+    setCartItems((items) =>
+      items.length
+        ? [
+            {
+              ...items[0],
+              productId: value,
+              size: nextProduct.sizes[0] || "",
+              color: nextProduct.colors[0] || "",
+            },
+            ...items.slice(1),
+          ]
+        : [createCartItem(nextProduct)],
+    );
+  };
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!product) {
+    if (!checkoutItems.length) {
       setErrors({ form: "No active product is available for this checkout page." });
       return;
     }
@@ -204,17 +277,26 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
       nextErrors.address = "This field is required.";
     if (required.phone && required.phone.replace(/\D/g, "").length < 6)
       nextErrors.phone = "Enter a valid phone number.";
+    const submittedAt = new Date();
+    const orderPhone =
+      required.phone || `NO-PHONE-${submittedAt.getTime().toString(36)}`;
     config.customFields
       .filter((x) => x.enabled && x.required)
       .forEach((field) => {
         if (!data.get(`checkout-${field.id}`))
           nextErrors[`checkout-${field.id}`] = "This field is required.";
       });
-    product.customFields
-      .filter((field) => (field.enabled ?? true) && field.required)
-      .forEach((field) => {
-        if (!data.get(`product-${field.id}`))
-          nextErrors[`product-${field.id}`] = "This field is required.";
+    checkoutItems.forEach(({ item, product }) => {
+      product.customFields
+        .filter((field) => (field.enabled ?? true) && field.required)
+        .forEach((field) => {
+          const key = productFieldName(
+            item.key,
+            field.id,
+            config.allowMultipleProducts,
+          );
+          if (!data.get(key)) nextErrors[key] = "This field is required.";
+        });
       });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -228,15 +310,40 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
         ),
       ) + 1;
     const orderNumber = `ORD-${nextNumber}`;
-    const now = new Date();
-    const productFields = Object.fromEntries(
-      product.customFields
-        .filter((field) => field.enabled ?? true)
-        .map((field) => [
-          field.name,
-          sanitizeText(data.get(`product-${field.id}`), 200),
-        ]),
-    );
+    const now = submittedAt;
+    const orderItems = checkoutItems.map(({ item, product }) => {
+      const productFields = Object.fromEntries(
+        product.customFields
+          .filter((field) => field.enabled ?? true)
+          .map((field) => [
+            field.name,
+            sanitizeText(
+              data.get(
+                productFieldName(
+                  item.key,
+                  field.id,
+                  config.allowMultipleProducts,
+                ),
+              ),
+              200,
+            ),
+          ]),
+      );
+      return {
+        item,
+        product,
+        productFields,
+        lineTotal: product.price * item.quantity,
+        variant:
+          [item.size, item.color].filter(Boolean).join(" · ") || "Standard",
+      };
+    });
+    const firstLine = orderItems[0];
+    const productFields = firstLine?.productFields || {};
+    const productSummary =
+      orderItems.map(({ item, product }) => `${item.quantity} × ${product.name}`).join(", ") ||
+      firstLine?.product.name ||
+      "Order items";
     const checkoutFields = Object.fromEntries(
       config.customFields
         .filter((field) => field.enabled)
@@ -253,12 +360,12 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
       customer: required.customerName,
       customerName: required.customerName,
       initials: initials(required.customerName),
-      phone: required.phone,
+      phone: orderPhone,
       email,
-      product: product.name,
-      productId: product.id,
-      productName: product.name,
-      productImage: product.image,
+      product: productSummary,
+      productId: firstLine.product.id,
+      productName: productSummary,
+      productImage: firstLine.product.image,
       date: now.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -269,10 +376,10 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
       totalAmount: total,
       status: config.defaultOrderStatus,
       address: required.address,
-      quantity,
+      quantity: orderItems.reduce((sum, { item }) => sum + item.quantity, 0),
       variant: [size, color].filter(Boolean).join(" · ") || "Standard",
-      size,
-      color,
+      size: orderItems.length > 1 ? "" : firstLine.item.size,
+      color: orderItems.length > 1 ? "" : firstLine.item.color,
       city: required.city,
       paymentMethod: "Cash on Delivery",
       notes: sanitizeMultiline(data.get("giftNote"), 500),
@@ -294,26 +401,26 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             store_slug: storeId,
             customer: {
               name: required.customerName,
-              phone: required.phone,
+              phone: orderPhone,
               email,
               city: required.city,
               address: required.address,
             },
             notes: order.notes,
-            items: [
-              {
+            items: orderItems.map(
+              ({ item, product, productFields, lineTotal, variant }) => ({
                 product_id: product.id,
                 product_name: product.name,
                 product_image: product.image,
-                quantity,
+                quantity: item.quantity,
                 unit_price: product.price,
-                total_price: total,
-                size,
-                color,
-                variant_label: order.variant,
+                total_price: lineTotal,
+                size: item.size,
+                color: item.color,
+                variant_label: variant,
                 custom_fields: productFields,
-              },
-            ],
+              }),
+            ),
             checkout_custom_fields: checkoutFields,
           },
         });
@@ -327,7 +434,11 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
         }
         const orderNumber = (created as { order_number?: string })?.order_number || order.orderNumber;
         window.sessionStorage.setItem("orderflow.last-order", orderNumber || "");
-        router.push(`/checkout/success?orderId=${encodeURIComponent(orderNumber || "")}&store=${encodeURIComponent(storeId)}&phone=${encodeURIComponent(required.phone)}`);
+        window.sessionStorage.setItem(
+          "orderflow.last-checkout-config",
+          JSON.stringify(config),
+        );
+        router.push(`/checkout/success?orderId=${encodeURIComponent(orderNumber || "")}&store=${encodeURIComponent(storeId)}&phone=${encodeURIComponent(orderPhone)}`);
         return;
       } catch (error) {
         setErrors({
@@ -343,7 +454,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
     writeStorage(storageKeys.orders, [order, ...storedOrders]);
     const storedCustomers = readCustomers([]);
     const existing = storedCustomers.find(
-      (x) => normalizePhone(x.phone) === normalizePhone(required.phone),
+      (x) => normalizePhone(x.phone) === normalizePhone(orderPhone),
     );
     let nextCustomers: Customer[];
     if (existing) {
@@ -365,7 +476,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
                 {
                   id: orderNumber,
                   date: order.date,
-                  products: `${quantity} × ${product.name}`,
+                  products: productSummary,
                   amount: total,
                   status: config.defaultOrderStatus,
                 },
@@ -377,11 +488,11 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
     } else {
       nextCustomers = [
         {
-          id: Date.now(),
+          id: orderNumber,
           name: required.customerName,
           initials: initials(required.customerName),
           email,
-          phone: required.phone,
+          phone: orderPhone,
           country: countryNames[settings.country] || "",
           city: required.city,
           address: required.address,
@@ -395,7 +506,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             {
               id: orderNumber,
               date: order.date,
-              products: `${quantity} × ${product.name}`,
+              products: productSummary,
               amount: total,
               status: config.defaultOrderStatus,
             },
@@ -408,18 +519,28 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
     writeStorage(
       storageKeys.products,
       products.map((item) =>
-        item.id === product.id
+        orderItems.some((line) => sameId(line.product.id, item.id))
           ? {
               ...item,
-              ordersCount: item.ordersCount + quantity,
-              stock: Math.max(0, item.stock - quantity),
+              ordersCount:
+                item.ordersCount +
+                orderItems
+                  .filter((line) => sameId(line.product.id, item.id))
+                  .reduce((sum, line) => sum + line.item.quantity, 0),
+              stock: Math.max(
+                0,
+                item.stock -
+                  orderItems
+                    .filter((line) => sameId(line.product.id, item.id))
+                    .reduce((sum, line) => sum + line.item.quantity, 0),
+              ),
             }
           : item,
       ),
     );
     const storedNotifications = readNotifications([]);
     const notification: Notification = {
-      id: `public-order-${Date.now()}`,
+      id: `public-order-${orderNumber}`,
       title: "New order received",
       message: `${required.customerName} placed ${orderNumber}.`,
       type: "New Order",
@@ -432,6 +553,10 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
       ...storedNotifications,
     ]);
     window.sessionStorage.setItem("orderflow.last-order", orderNumber);
+    window.sessionStorage.setItem(
+      "orderflow.last-checkout-config",
+      JSON.stringify(config),
+    );
     router.push(`/checkout/success?orderId=${encodeURIComponent(orderNumber)}`);
   };
   if (!ready) return <PublicCheckoutSkeleton />;
@@ -453,9 +578,11 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             </i>
             <b>{config.storeName}</b>
           </Link>
-          <Link className="public-track-link" href="/track">
-            Track Order
-          </Link>
+          {config.trackingEnabled && (
+            <Link className="public-track-link" href="/track">
+              Track Order
+            </Link>
+          )}
         </header>
         <section className="public-limit-state card">
           <Package size={34} />
@@ -491,9 +618,11 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
           )}
           <b>{config.storeName}</b>
         </Link>
-        <Link className="public-track-link" href="/track">
-          Track Order
-        </Link>
+        {config.trackingEnabled && (
+          <Link className="public-track-link" href="/track">
+            Track Order
+          </Link>
+        )}
       </header>
       <div className="public-checkout-shell">
         <section className="public-product-panel">
@@ -507,7 +636,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
             <span>Product</span>
             <select
               value={product?.id || 0}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e) => setPrimaryProduct(e.target.value)}
               disabled={!activeProducts.length}
             >
               {activeProducts.length ? (
@@ -543,6 +672,15 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
               </div>
             </div>
           )}
+          {config.allowMultipleProducts ? (
+            <MultiProductSelector
+              products={activeProducts}
+              items={cartItems}
+              errors={errors}
+              formId={formId}
+              onChange={setCartItems}
+            />
+          ) : (
           <div className="public-option-grid">
             {product?.sizes.length ? (
               <label className="public-field">
@@ -601,6 +739,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
                 />
               ))}
           </div>
+          )}
         </section>
         <form id={formId} className="public-customer-form" onSubmit={submit}>
           <div className="public-form-head">
@@ -688,6 +827,156 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
         </form>
       </div>
     </main>
+  );
+}
+
+function MultiProductSelector({
+  products,
+  items,
+  errors,
+  formId,
+  onChange,
+}: {
+  products: Product[];
+  items: CheckoutCartItem[];
+  errors: Record<string, string>;
+  formId: string;
+  onChange: (items: CheckoutCartItem[]) => void;
+}) {
+  const updateItem = (key: string, patch: Partial<CheckoutCartItem>) => {
+    onChange(items.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  };
+  const chooseProduct = (key: string, productId: EntityId) => {
+    const product = products.find((item) => sameId(item.id, productId));
+    if (!product) return;
+    updateItem(key, {
+      productId,
+      size: product.sizes[0] || "",
+      color: product.colors[0] || "",
+    });
+  };
+  const addItem = () => {
+    const product = products[0];
+    if (!product) return;
+    onChange([...items, createCartItem(product)]);
+  };
+  const removeItem = (key: string) => {
+    if (items.length <= 1) return;
+    onChange(items.filter((item) => item.key !== key));
+  };
+  if (!products.length) return null;
+  return (
+    <div className="public-multi-products">
+      <div className="builder-heading">
+        <div>
+          <h4>Products in this order</h4>
+          <p>Add one or more products before confirming your order.</p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={addItem}>
+          <Plus size={13} />
+          Add Product
+        </button>
+      </div>
+      {items.map((item, index) => {
+        const product =
+          products.find((value) => sameId(value.id, item.productId)) || products[0];
+        return (
+          <article className="public-cart-item" key={item.key}>
+            <div className="public-cart-head">
+              <b>Product {index + 1}</b>
+              {items.length > 1 && (
+                <button type="button" onClick={() => removeItem(item.key)}>
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className="public-option-grid">
+              <label className="public-field">
+                <span>Product</span>
+                <select
+                  value={product.id}
+                  onChange={(e) => chooseProduct(item.key, e.target.value)}
+                >
+                  {products.map((value) => (
+                    <option key={value.id} value={value.id}>
+                      {value.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {product.sizes.length ? (
+                <label className="public-field">
+                  <span>Size</span>
+                  <select
+                    value={item.size}
+                    onChange={(e) => updateItem(item.key, { size: e.target.value })}
+                  >
+                    {product.sizes.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {product.colors.length ? (
+                <label className="public-field">
+                  <span>Color</span>
+                  <select
+                    value={item.color}
+                    onChange={(e) => updateItem(item.key, { color: e.target.value })}
+                  >
+                    {product.colors.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="public-field">
+                <span>Quantity</span>
+                <span className="quantity-control">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateItem(item.key, {
+                        quantity: Math.max(1, item.quantity - 1),
+                      })
+                    }
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <b>{item.quantity}</b>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateItem(item.key, { quantity: item.quantity + 1 })
+                    }
+                  >
+                    <Plus size={14} />
+                  </button>
+                </span>
+              </label>
+              {product.customFields
+                .filter((field) => field.enabled ?? true)
+                .map((field) => (
+                  <DynamicField
+                    key={`${item.key}-${field.id}`}
+                    field={{
+                      id: field.id,
+                      label: field.name,
+                      type: field.type,
+                      required: field.required || false,
+                      enabled: field.enabled ?? true,
+                      options: field.options,
+                    }}
+                    name={productFieldName(item.key, field.id, true)}
+                    error={errors[productFieldName(item.key, field.id, true)]}
+                    formId={formId}
+                  />
+                ))}
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -813,6 +1102,25 @@ function DynamicField({
       )}
     </label>
   );
+}
+function createCartItem(product: Product): CheckoutCartItem {
+  return {
+    key: `${product.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    productId: product.id,
+    quantity: 1,
+    size: product.sizes[0] || "",
+    color: product.colors[0] || "",
+  };
+}
+function productFieldName(
+  itemKey: string,
+  fieldId: string,
+  multiple: boolean,
+) {
+  return multiple ? `product-${itemKey}-${fieldId}` : `product-${fieldId}`;
+}
+function sameId(left: EntityId, right: EntityId) {
+  return String(left) === String(right);
 }
 function initials(name: string) {
   return name
