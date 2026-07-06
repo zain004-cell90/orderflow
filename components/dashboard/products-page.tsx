@@ -2,7 +2,6 @@
 
 import {
   Copy,
-  Download,
   Grid2X2,
   Image as ImageIcon,
   List,
@@ -17,7 +16,6 @@ import {
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { Product, ProductStatus } from "@/lib/mock-data";
-import { downloadCsv } from "@/lib/csv";
 import { DashboardShell } from "./dashboard-shell";
 import { useDashboard } from "./dashboard-store";
 import { EmptyState } from "./shared";
@@ -55,7 +53,6 @@ export function ProductsPage() {
     deleteProduct,
     askConfirm,
     toast,
-    addNotification,
     storeSettings,
   } = useDashboard();
   const params = useSearchParams();
@@ -195,45 +192,6 @@ export function ProductsPage() {
     setSelected((v) => (v?.id === product.id ? { ...v, status: next } : v));
     toast("Product status updated");
   };
-  const exportProducts = (scope: "current" | "all") => {
-    const source = scope === "current" ? visible : products;
-    if (!source.length) {
-      toast("No data available to export.", "error");
-      return;
-    }
-    downloadCsv(
-      "orderflow-products.csv",
-      [
-        "Product",
-        "Category",
-        "Price",
-        "Status",
-        "Orders",
-        "Stock",
-        "Sizes",
-        "Colors",
-        "Custom Fields",
-      ],
-      source.map((p) => [
-        p.name,
-        p.category,
-        p.price,
-        p.status,
-        p.ordersCount,
-        p.stock,
-        p.sizes.join(" | "),
-        p.colors.join(" | "),
-        p.customFields.map((x) => x.name).join(" | "),
-      ]),
-    );
-    toast("CSV exported successfully.");
-    addNotification({
-      title: "CSV export completed",
-      message: `${source.length} products were exported.`,
-      type: "Export Completed",
-      actionUrl: "/dashboard/products",
-    });
-  };
   return (
     <DashboardShell
       title="Products"
@@ -281,20 +239,6 @@ export function ProductsPage() {
             </select>
           </label>
           <ViewToggle value={view} onChange={setView} />
-          <div className="export-anchor">
-            <button className="btn-secondary">
-              <Download size={13} />
-              Export
-            </button>
-            <div className="export-menu card">
-              <button onClick={() => exportProducts("current")}>
-                Export current view
-              </button>
-              <button onClick={() => exportProducts("all")}>
-                Export all data
-              </button>
-            </div>
-          </div>
         </div>
       </div>
       <div className="product-search-row">
