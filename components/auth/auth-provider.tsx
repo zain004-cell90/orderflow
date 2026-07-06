@@ -89,6 +89,26 @@ function createUser(name: string, email: string): MockUser {
     customersUsed: 0,
   };
 }
+
+function mapSupabaseProfile(profile: any): MockUser {
+  const email = normalizeEmail(profile.email || "");
+  return {
+    id: profile.id,
+    name: profile.full_name || email.split("@")[0] || "Seller",
+    email,
+    role: profile.role === "admin" ? "admin" : "user",
+    plan: toPlanUi(profile.plan),
+    status: toAccountStatus(profile.account_status),
+    country: profile.country || "Pakistan",
+    storeId: "",
+    createdAt: profile.created_at || new Date().toISOString(),
+    lastActiveAt:
+      profile.last_sign_in_at || profile.updated_at || profile.created_at || new Date().toISOString(),
+    ordersUsed: 0,
+    productsUsed: 0,
+    customersUsed: 0,
+  };
+}
 export function AuthProvider({
   children,
   bootAuthState = true,
@@ -299,16 +319,16 @@ export function AuthProvider({
     if (password.length < 8)
       return { ok: false, message: "Password must be at least 8 characters." };
     if (supabase) {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: normalized,
         password,
       });
       if (error) return { ok: false, message: error.message };
-      await loadSupabaseAuthState(normalized);
+      const signedInUser = signInData.user;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("account_status")
-        .eq("email", normalized)
+        .select("*")
+        .eq("id", signedInUser?.id || "")
         .maybeSingle();
       if (profile?.account_status === "deleted") {
         await supabase.auth.signOut();
@@ -318,23 +338,53 @@ export function AuthProvider({
           message: "This account has been deleted. Contact support.",
         };
       }
-      const {
-        data: { user: signedInUser },
-        error: currentUserError,
-      } = await supabase.auth.getUser();
-      if (currentUserError && isInvalidRefreshTokenError(currentUserError)) {
-        await clearSupabaseBrowserSession(supabase);
-        setSession(null);
-        return {
-          ok: false,
-          message: "Your session expired. Please log in again.",
-        };
-      }
+      const profilePayload = {
+        id: signedInUser?.id || normalized,
+        email: normalized,
+        full_name:
+          profile?.full_name ||
+          (signedInUser?.user_metadata?.full_name as string | undefined) ||
+          normalized.split("@")[0],
+        role: profile?.role || (isAdminEmail(normalized) ? "admin" : "user"),
+        plan: profile?.plan || (isAdminEmail(normalized) ? "growth" : "free"),
+        account_status: profile?.account_status || "active",
+        created_at: profile?.created_at || new Date().toISOString(),
+        last_sign_in_at:
+          profile?.last_sign_in_at ||
+          signedInUser?.last_sign_in_at ||
+          new Date().toISOString(),
+      };
+      setSession({
+        email: normalized,
+        createdAt: new Date().toISOString(),
+        remember,
+      });
+      setUsers([mapSupabaseProfile(profilePayload)]);
       const { data: store } = await supabase
         .from("stores")
         .select("id, is_setup_complete")
         .eq("owner_id", signedInUser?.id || "")
         .maybeSingle();
+      setStores(
+        store
+          ? [
+              {
+                id: store.id,
+                name: "Your Store",
+                ownerId: signedInUser?.id || "",
+                ownerEmail: normalized,
+                plan: toPlanUi(profilePayload.plan),
+                status: toAccountStatus(profilePayload.account_status),
+                country: "Pakistan",
+                orders: 0,
+                products: 0,
+                customers: 0,
+                createdAt: profilePayload.created_at,
+              },
+            ]
+          : [],
+      );
+      setReady(true);
       return {
         ok: true,
         nextPath: store?.is_setup_complete ? undefined : routes.onboarding,

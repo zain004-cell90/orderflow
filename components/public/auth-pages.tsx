@@ -57,8 +57,12 @@ export function LoginPage() {
   const { login } = useAuth();
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setMessage("");
     const data = new FormData(event.currentTarget);
     const result = await login(
       String(data.get("email")),
@@ -67,16 +71,16 @@ export function LoginPage() {
     );
     if (!result.ok) {
       setMessage(result.message);
+      setSubmitting(false);
       return;
     }
     const requested = params.get("next");
-    router.push(
+    const destination =
       result.nextPath ||
-        (requested && requested.startsWith("/") && !requested.startsWith("//")
-          ? requested
-          : routes.dashboard),
-    );
-    router.refresh();
+      (requested && requested.startsWith("/") && !requested.startsWith("//")
+        ? requested
+        : routes.dashboard);
+    router.replace(destination);
   };
   const features = [
     { icon: ShoppingCart, label: "Orders" },
@@ -219,9 +223,10 @@ export function LoginPage() {
             )}
             <button
               type="submit"
+              disabled={submitting}
               className="h-14 w-full rounded-xl bg-gradient-to-b from-[#4f46e5] to-[#3525cd] text-[14px] font-semibold text-white shadow-lg shadow-[#3525cd]/20"
             >
-              Log In
+              {submitting ? "Opening dashboard..." : "Log In"}
             </button>
             <div className="flex items-center py-1">
               <span className="h-px flex-1 bg-[#c7c4d8]/30" />

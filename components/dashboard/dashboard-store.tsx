@@ -330,15 +330,19 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               .insert({
                 store_id: storeId,
                 customer_id: customer.id,
+                order_number: order.orderNumber || order.id,
                 customer_name: order.customerName || order.customer,
                 phone: order.phone,
                 email: order.email || null,
                 city: order.city || null,
                 address: order.address || null,
                 notes: order.notes || null,
+                subtotal: order.totalAmount || order.amount,
                 total_amount: order.totalAmount || order.amount,
+                currency: "PKR",
                 payment_method: order.paymentMethod || "Cash on Delivery",
                 status: statusToDb[order.status],
+                source: "dashboard",
               })
               .select("id, order_number")
               .single();
