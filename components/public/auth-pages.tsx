@@ -12,6 +12,7 @@ import {
   Gift,
   KeyRound,
   Mail,
+  LockKeyhole,
   Package2,
   ShoppingCart,
   Truck,
@@ -21,6 +22,8 @@ import {
 import { FormEvent, useState } from "react";
 import { routes } from "@/lib/routes";
 import { useAuth } from "@/components/auth/auth-provider";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 function GoogleMark() {
   return (
@@ -474,6 +477,101 @@ export function CheckEmailPage() {
           Back to home
         </Link>
       </div>
+    </AuthSimpleShell>
+  );
+}
+
+export function ResetPasswordPage() {
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setMessage("");
+    const data = new FormData(event.currentTarget);
+    const password = String(data.get("password"));
+    const confirmPassword = String(data.get("confirmPassword"));
+    if (password.length < 8) {
+      setSuccess(false);
+      setMessage("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setSuccess(false);
+      setMessage("Passwords do not match.");
+      return;
+    }
+    if (!isSupabaseConfigured()) {
+      setSuccess(false);
+      setMessage("Supabase is not configured.");
+      return;
+    }
+    const supabase = createSupabaseBrowserClient();
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        setSuccess(false);
+        setMessage(error.message);
+        return;
+      }
+    }
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      setSuccess(false);
+      setMessage(error.message);
+      return;
+    }
+    setSuccess(true);
+    setMessage("Password updated. You can now log in.");
+    window.setTimeout(() => router.push(routes.login), 1400);
+  };
+
+  return (
+    <AuthSimpleShell
+      icon={<LockKeyhole size={24} />}
+      title="Set a new password"
+      text="Enter a new password for your OrderFlow account."
+    >
+      <form onSubmit={submit} className="space-y-5">
+        <FormLabel label="New Password">
+          <input
+            className={inputClass}
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="••••••••"
+          />
+        </FormLabel>
+        <FormLabel label="Confirm Password">
+          <input
+            className={inputClass}
+            name="confirmPassword"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="••••••••"
+          />
+        </FormLabel>
+        {message && (
+          <p role="alert" className={success ? "auth-form-success" : "auth-form-error"}>
+            {message}
+          </p>
+        )}
+        <button type="submit" className="btn-primary h-12 w-full">
+          Update password
+        </button>
+      </form>
+      <p className="mt-8 text-center text-[14px] text-[#464555]">
+        Back to{" "}
+        <Link className="font-semibold text-[#3525cd] hover:underline" href={routes.login}>
+          log in
+        </Link>
+      </p>
     </AuthSimpleShell>
   );
 }

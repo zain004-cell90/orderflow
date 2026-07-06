@@ -27,6 +27,7 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { toPlanDb, toPlanUi } from "@/lib/supabase/mappers";
 import { routes } from "@/lib/routes";
+import { getAuthRedirectUrl } from "@/lib/public-url";
 import type {
   MockAuthSession,
   MockStore,
@@ -452,12 +453,8 @@ export function AuthProvider({
     if (!/^\S+@\S+\.\S+$/.test(normalized))
       return { ok: false, message: "Enter a valid email address." };
     if (supabase) {
-      const redirectTo =
-        typeof window === "undefined"
-          ? undefined
-          : `${window.location.origin}${routes.login}`;
       const { error } = await supabase.auth.resetPasswordForEmail(normalized, {
-        redirectTo,
+        redirectTo: getAuthRedirectUrl(routes.resetPassword),
       });
       if (error) return { ok: false, message: error.message };
     }
