@@ -344,10 +344,13 @@ export async function updateOrderStatus(
   status: OrderStatus,
 ) {
   const dbStatus = statusToDb[status];
-  const { data: order, error } = await supabase
-    .from("orders")
-    .update({ status: dbStatus })
-    .or(`id.eq.${orderNumberOrId},order_number.eq.${orderNumberOrId}`)
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const query = supabase.from("orders").update({ status: dbStatus });
+  const filteredQuery = uuidPattern.test(orderNumberOrId)
+    ? query.eq("id", orderNumberOrId)
+    : query.eq("order_number", orderNumberOrId);
+  const { data: order, error } = await filteredQuery
     .select("id, store_id, order_number")
     .single();
   if (error) throw error;
