@@ -60,7 +60,6 @@ export function ProductFormModal({
   const [customFields, setCustomFields] = useState<ProductCustomField[]>(
     product?.customFields || [],
   );
-  const [newCustomFieldName, setNewCustomFieldName] = useState("");
   const upload = (file?: File) => {
     if (!file) return;
     const error=validateImageFile(file,10_000_000);if(error){setErrors(value=>({...value,image:error}));return}
@@ -252,28 +251,19 @@ export function ProductFormModal({
                   engraving text.
                 </p>
               </div>
-              <input
-                className="field custom-field-name-input"
-                value={newCustomFieldName}
-                onChange={(e) => setNewCustomFieldName(e.target.value)}
-                placeholder="Field name"
-                aria-label="Custom field name"
-              />
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => {
-                  const name = sanitizeText(newCustomFieldName, 80);
                   setCustomFields((v) => [
                     ...v,
                     {
                       id: `field-${Date.now()}`,
-                      name,
+                      name: "",
                       type: "Text",
                       options: [],
                     },
                   ]);
-                  setNewCustomFieldName("");
                 }}
               >
                 <Plus size={13} />
@@ -324,12 +314,12 @@ function CustomFieldEditor({
   return (
     <div className="custom-field-card">
       <label>
-        Field Label
+        Field Label Name
         <input
           className="field"
           value={field.name}
           onChange={(e) => onChange({ name: e.target.value })}
-          placeholder="Fabric, Weight, Gift Wrap..."
+          placeholder="Enter field label name"
         />
       </label>
       <label>
