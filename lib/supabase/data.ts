@@ -426,6 +426,7 @@ export async function uploadImage(
   userId: string,
   file: File,
 ) {
+  // Storage policies should restrict writes to user-scoped paths under these public-read buckets.
   const extension = file.name.split(".").pop() || "png";
   const path = `${userId}/${Date.now()}-${Math.random().toString(16).slice(2)}.${extension}`;
   const { error } = await supabase.storage.from(bucket).upload(path, file, {

@@ -396,6 +396,7 @@ export function PublicCheckoutPage({ storeId }: { storeId: string }) {
     if (isSupabaseConfigured()) {
       try {
         const supabase = createSupabaseBrowserClient();
+        // Public checkout writes orders only through RPC so private seller tables stay protected by RLS.
         const { data: created, error } = await supabase.rpc("create_checkout_order", {
           payload: {
             store_slug: storeId,

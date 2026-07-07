@@ -129,6 +129,7 @@ function isAllowedNotification(type: NotificationType) {
 }
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
+  // Central dashboard data layer: pages call this provider instead of querying Supabase directly.
   const [orders, setOrders] = useState<Order[]>(emptyOrders);
   const [products, setProducts] = useState<Product[]>(emptyProducts);
   const [customers, setCustomers] = useState<Customer[]>(emptyCustomers);

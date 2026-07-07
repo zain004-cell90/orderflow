@@ -51,7 +51,7 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   updateUser: (
     id: string,
-    patch: Partial<Pick<MockUser, "plan" | "status" | "name">>,
+    patch: Partial<Pick<MockUser, "plan" | "status" | "name" | "role">>,
   ) => void;
   deleteUser: (id: string) => void;
   updateCurrentPlan: (plan: UserPlan) => void;
@@ -78,7 +78,7 @@ function createUser(name: string, email: string): MockUser {
     name: name.trim() || normalized.split("@")[0],
     email: normalized,
     role: isAdminEmail(normalized) ? "admin" : "user",
-    plan: isAdminEmail(normalized) ? "Growth" : "Free",
+    plan: "Free",
     status: "Active",
     country: "Pakistan",
     storeId: `store-${Date.now()}`,
@@ -116,6 +116,7 @@ export function AuthProvider({
   children: ReactNode;
   bootAuthState?: boolean;
 }) {
+  // Keeps the UI auth shape stable while swapping between Supabase and local fallback.
   const [session, setSession] = useState<MockAuthSession | null>(null);
   const [users, setUsers] = useState<MockUser[]>([]);
   const [stores, setStores] = useState<MockStore[]>([]);
@@ -158,7 +159,7 @@ export function AuthProvider({
           profile?.full_name ||
           (authUser.user_metadata?.full_name as string | undefined) ||
           email.split("@")[0],
-        role: isAdminEmail(email) ? "admin" : profile?.role || "user",
+        role: isAdminEmail(email) ? "admin" : profile?.role || "owner",
         account_status: profile?.account_status || "active",
       };
       if (!profile) {
@@ -345,8 +346,8 @@ export function AuthProvider({
           profile?.full_name ||
           (signedInUser?.user_metadata?.full_name as string | undefined) ||
           normalized.split("@")[0],
-        role: profile?.role || (isAdminEmail(normalized) ? "admin" : "user"),
-        plan: profile?.plan || (isAdminEmail(normalized) ? "growth" : "free"),
+        role: profile?.role || (isAdminEmail(normalized) ? "admin" : "owner"),
+        plan: "free",
         account_status: profile?.account_status || "active",
         created_at: profile?.created_at || new Date().toISOString(),
         last_sign_in_at:
@@ -354,17 +355,21 @@ export function AuthProvider({
           signedInUser?.last_sign_in_at ||
           new Date().toISOString(),
       };
+      const { data: store } = await supabase
+        .from("stores")
+        .select("id, is_setup_complete, subscriptions(*)")
+        .eq("owner_id", signedInUser?.id || "")
+        .maybeSingle();
+      const subscription = Array.isArray(store?.subscriptions)
+        ? store?.subscriptions[0]
+        : store?.subscriptions;
+      const currentPlan = toPlanUi(subscription?.plan);
       setSession({
         email: normalized,
         createdAt: new Date().toISOString(),
         remember,
       });
-      setUsers([mapSupabaseProfile(profilePayload)]);
-      const { data: store } = await supabase
-        .from("stores")
-        .select("id, is_setup_complete")
-        .eq("owner_id", signedInUser?.id || "")
-        .maybeSingle();
+      setUsers([{ ...mapSupabaseProfile(profilePayload), plan: currentPlan }]);
       setStores(
         store
           ? [
@@ -373,7 +378,7 @@ export function AuthProvider({
                 name: "Your Store",
                 ownerId: signedInUser?.id || "",
                 ownerEmail: normalized,
-                plan: toPlanUi(profilePayload.plan),
+                plan: currentPlan,
                 status: toAccountStatus(profilePayload.account_status),
                 country: "Pakistan",
                 orders: 0,
@@ -448,7 +453,7 @@ export function AuthProvider({
             id: data.user.id,
             email: normalized,
             full_name: name.trim(),
-            role: isAdminEmail(normalized) ? "admin" : "user",
+            role: isAdminEmail(normalized) ? "admin" : "owner",
             account_status: "active",
           },
           { onConflict: "id" },
@@ -525,7 +530,7 @@ export function AuthProvider({
   };
   const updateUser = (
     id: string,
-    patch: Partial<Pick<MockUser, "plan" | "status" | "name">>,
+    patch: Partial<Pick<MockUser, "plan" | "status" | "name" | "role">>,
   ) => {
     setUsers((value) =>
       value.map((item) => (item.id === id ? { ...item, ...patch } : item)),
@@ -542,11 +547,12 @@ export function AuthProvider({
       ),
     );
     if (supabase) {
-      if (patch.name || patch.status) {
+      if (patch.name || patch.status || patch.role) {
         void Promise.resolve(supabase
           .from("profiles")
           .update({
             ...(patch.name ? { full_name: patch.name } : {}),
+            ...(patch.role ? { role: patch.role === "admin" ? "admin" : "owner" } : {}),
             ...(patch.status
               ? { account_status: toDbAccountStatus(patch.status) }
               : {}),

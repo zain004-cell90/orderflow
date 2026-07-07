@@ -1,6 +1,6 @@
-import type { CheckoutConfig, Customer, Notification, Order, Product, StoreSettings } from "./types";
+import type { CheckoutConfig, ContactSubmission, Customer, Notification, Order, Product, StoreSettings } from "./types";
 
-export const storageKeys={checkout:"orderflow.checkout",orders:"orderflow.orders",products:"orderflow.products",customers:"orderflow.customers",settings:"orderflow.settings",notifications:"orderflow.notifications",account:"orderflow.account",billing:"orderflow.billing",automation:"orderflow.automation",onboarding:"orderflow.onboarding",authSession:"orderflow.auth.session",users:"orderflow.admin.users",stores:"orderflow.admin.stores"} as const;
+export const storageKeys={checkout:"orderflow.checkout",orders:"orderflow.orders",products:"orderflow.products",customers:"orderflow.customers",settings:"orderflow.settings",notifications:"orderflow.notifications",account:"orderflow.account",billing:"orderflow.billing",automation:"orderflow.automation",onboarding:"orderflow.onboarding",authSession:"orderflow.auth.session",users:"orderflow.admin.users",stores:"orderflow.admin.stores",contactSubmissions:"orderflow.contact.submissions"} as const;
 
 export function readStorage<T>(key:string,fallback:T):T{
   if(typeof window==="undefined")return fallback;
@@ -15,6 +15,7 @@ export function readProducts(fallback:Product[]=[]){return stripLegacyDemoProduc
 export function readCustomers(fallback:Customer[]=[]){return stripLegacyDemoCustomers(readStorage(storageKeys.customers,fallback))}
 export function readSettings(fallback:StoreSettings){return readStorage(storageKeys.settings,fallback)}
 export function readNotifications(fallback:Notification[]=[]){return stripLegacyDemoNotifications(readStorage(storageKeys.notifications,fallback))}
+export function readContactSubmissions(fallback:ContactSubmission[]=[]){return readStorage(storageKeys.contactSubmissions,fallback)}
 
 const legacyDemoOrderIds = new Set([
   "ORD-1042","ORD-1043","ORD-1044","ORD-1045","ORD-1046","ORD-1047",

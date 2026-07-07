@@ -4,6 +4,7 @@ import { supabaseAnonKey, supabaseUrl } from "./config";
 
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
+  // Server client preserves Supabase cookies for App Router route guards.
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {

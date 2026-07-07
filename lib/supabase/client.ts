@@ -6,12 +6,14 @@ import { supabaseAnonKey, supabaseUrl } from "./config";
 export { isInvalidRefreshTokenError } from "./errors";
 
 export function createSupabaseBrowserClient() {
+  // Browser client is for Client Components only. Server route checks use server.ts.
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
 export async function clearSupabaseBrowserSession(
   supabase?: SupabaseClient | null,
 ) {
+  // Handles invalid refresh-token cases by clearing every local Supabase auth artifact.
   try {
     await supabase?.auth.signOut({ scope: "local" });
   } catch {

@@ -37,6 +37,8 @@ export type AccountStatus="Active"|"Suspended"|"Blocked"|"Deleted";
 export interface MockAuthSession{email:string;createdAt:string;remember:boolean}
 export interface MockUser{id:string;name:string;email:string;role:UserRole;plan:UserPlan;status:AccountStatus;country:string;storeId:string;createdAt:string;lastActiveAt:string;ordersUsed:number;productsUsed:number;customersUsed:number}
 export interface MockStore{id:string;name:string;ownerId:string;ownerEmail:string;plan:UserPlan;status:AccountStatus;country:string;orders:number;products:number;customers:number;createdAt:string}
+export type ContactSubmissionStatus="New"|"Read"|"Replied"|"Archived";
+export interface ContactSubmission{id:string;fullName:string;email:string;subject:string;message:string;status:ContactSubmissionStatus;source:string;userAgent?:string;createdAt:string;updatedAt:string}
 
 export interface Activity{title:string;detail:string;time:string;tone:"primary"|"success"|"warning"|"muted"}
 export interface AnalyticsMetric{label:string;value:string;change:string;icon:string}

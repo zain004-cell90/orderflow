@@ -102,6 +102,7 @@ export function TrackPage() {
           setResults([]);
           return;
         }
+        // Tracking RPC returns limited customer-facing data only.
         const { data, error } = await supabase.rpc("track_orders_by_phone", {
           store_slug: storeSlug,
           phone: query,

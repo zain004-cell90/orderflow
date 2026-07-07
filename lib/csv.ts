@@ -2,6 +2,7 @@ export type CsvCell=string|number|boolean|null|undefined;
 
 function escapeCsvCell(value:CsvCell){
   const raw=value==null?"":String(value);
+  // Prevent spreadsheet formula injection when CSVs are opened in Excel/Sheets.
   const spreadsheetSafe=/^\s*[=+\-@]/.test(raw)?`'${raw}`:raw;
   return `"${spreadsheetSafe.replaceAll('"','""')}"`;
 }

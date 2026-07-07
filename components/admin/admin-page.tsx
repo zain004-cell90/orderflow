@@ -1,9 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   Building2,
   Download,
+  Mail,
+  MessageSquareText,
+  RefreshCw,
   Search,
   ShieldCheck,
   Store,
@@ -16,12 +19,32 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { useDashboard } from "@/components/dashboard/dashboard-store";
 import { downloadCsv } from "@/lib/csv";
-import type { AccountStatus, MockUser, UserPlan } from "@/lib/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  readContactSubmissions,
+  storageKeys,
+  writeStorage,
+} from "@/lib/storage";
+import type {
+  AccountStatus,
+  ContactSubmission,
+  ContactSubmissionStatus,
+  MockUser,
+  UserPlan,
+} from "@/lib/types";
 
-type AdminTab = "overview" | "users" | "stores" | "analytics";
+type AdminTab = "overview" | "users" | "stores" | "messages" | "analytics";
 const plans: UserPlan[] = ["Free", "Starter", "Growth"];
 const statuses: AccountStatus[] = ["Active", "Suspended", "Blocked", "Deleted"];
+const messageStatuses: ContactSubmissionStatus[] = [
+  "New",
+  "Read",
+  "Replied",
+  "Archived",
+];
 export function AdminPage() {
+  // Protected by the server route; this client UI manages admin-only data/actions.
   const { user, users, stores, updateUser, deleteUser } = useAuth();
   const { toast, askConfirm, addNotification } = useDashboard();
   const [tab, setTab] = useState<AdminTab>("overview");
@@ -29,6 +52,11 @@ export function AdminPage() {
   const [plan, setPlan] = useState("All");
   const [status, setStatus] = useState("All");
   const [selected, setSelected] = useState<MockUser | null>(null);
+  const [messages, setMessages] = useState<ContactSubmission[]>([]);
+  const [messageStatus, setMessageStatus] = useState("All");
+  const [selectedMessage, setSelectedMessage] =
+    useState<ContactSubmission | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const filtered = useMemo(
     () =>
       users.filter(
@@ -48,15 +76,63 @@ export function AdminPage() {
       products: stores.reduce((sum, x) => sum + x.products, 0),
       customers: stores.reduce((sum, x) => sum + x.customers, 0),
       activeStores: stores.filter((x) => x.status === "Active").length,
+      messages: messages.filter((x) => x.status !== "Archived").length,
+      newMessages: messages.filter((x) => x.status === "New").length,
     }),
-    [users, stores],
+    [users, stores, messages],
   );
+  const filteredMessages = useMemo(
+    () =>
+      messages.filter(
+        (item) =>
+          `${item.fullName} ${item.email} ${item.subject} ${item.message}`
+            .toLowerCase()
+            .includes(query.toLowerCase()) &&
+          (messageStatus === "All" || item.status === messageStatus),
+      ),
+    [messages, messageStatus, query],
+  );
+  const loadMessages = async () => {
+    setLoadingMessages(true);
+    try {
+      if (isSupabaseConfigured()) {
+        const supabase = createSupabaseBrowserClient();
+        const { data, error } = await supabase
+          .from("contact_submissions")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        setMessages((data || []).map(mapContactSubmission));
+      } else {
+        setMessages(readContactSubmissions([]));
+      }
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : "Could not load messages.",
+        "error",
+      );
+      setMessages(readContactSubmissions([]));
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadMessages();
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const save = (
     target: MockUser,
-    patch: Partial<Pick<MockUser, "plan" | "status">>,
+    patch: Partial<Pick<MockUser, "plan" | "status" | "role">>,
   ) => {
     if (target.id === user?.id && patch.status && patch.status !== "Active") {
       toast("You cannot restrict your own administrator account.", "error");
+      return;
+    }
+    if (target.id === user?.id && patch.role && patch.role !== "admin") {
+      toast("You cannot remove your own admin access.", "error");
       return;
     }
     updateUser(target.id, patch);
@@ -126,6 +202,59 @@ export function AdminPage() {
       actionUrl: "/admin",
     });
   };
+  const updateMessageStatus = async (
+    target: ContactSubmission,
+    nextStatus: ContactSubmissionStatus,
+  ) => {
+    const nextMessages = messages.map((item) =>
+      item.id === target.id
+        ? { ...item, status: nextStatus, updatedAt: new Date().toISOString() }
+        : item,
+    );
+    setMessages(nextMessages);
+    setSelectedMessage((value) =>
+      value?.id === target.id
+        ? { ...value, status: nextStatus, updatedAt: new Date().toISOString() }
+        : value,
+    );
+    writeStorage(storageKeys.contactSubmissions, nextMessages);
+    try {
+      if (isSupabaseConfigured()) {
+        const supabase = createSupabaseBrowserClient();
+        const { error } = await supabase
+          .from("contact_submissions")
+          .update({ status: statusToDb(nextStatus) })
+          .eq("id", target.id);
+        if (error) throw error;
+      }
+      toast("Message status updated");
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : "Could not update message.",
+        "error",
+      );
+      void loadMessages();
+    }
+  };
+  const exportMessages = () => {
+    if (!filteredMessages.length) {
+      toast("No data available to export.", "error");
+      return;
+    }
+    downloadCsv(
+      "orderflow-contact-messages.csv",
+      ["Name", "Email", "Subject", "Message", "Status", "Date"],
+      filteredMessages.map((item) => [
+        item.fullName,
+        item.email,
+        item.subject,
+        item.message,
+        item.status,
+        item.createdAt,
+      ]),
+    );
+    toast("CSV exported successfully.");
+  };
   return (
     <DashboardShell
       title="Admin Panel"
@@ -143,6 +272,7 @@ export function AdminPage() {
               ["overview", "Overview"],
               ["users", "Users"],
               ["stores", "Stores"],
+              ["messages", `Messages${totals.newMessages ? ` (${totals.newMessages})` : ""}`],
               ["analytics", "Analytics"],
             ] as [AdminTab, string][]
           ).map(([id, label]) => (
@@ -182,6 +312,11 @@ export function AdminPage() {
                 icon={<ShieldCheck size={17} />}
                 label="Active Stores"
                 value={totals.activeStores}
+              />
+              <AdminMetric
+                icon={<MessageSquareText size={17} />}
+                label="Messages"
+                value={totals.messages}
               />
             </div>
             <section className="panel card">
@@ -279,6 +414,57 @@ export function AdminPage() {
             </div>
           </section>
         )}
+        {tab === "messages" && (
+          <>
+            <div className="admin-filters">
+              <label className="searchbar">
+                <Search size={14} />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search messages..."
+                />
+              </label>
+              <select
+                className="field"
+                value={messageStatus}
+                onChange={(e) => setMessageStatus(e.target.value)}
+                aria-label="Filter by message status"
+              >
+                <option>All</option>
+                {messageStatuses.map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+              <button className="btn-secondary" onClick={loadMessages}>
+                <RefreshCw size={14} />
+                Refresh
+              </button>
+              <button className="btn-secondary" onClick={exportMessages}>
+                <Download size={14} />
+                Export
+              </button>
+            </div>
+            <section className="panel card">
+              <div className="panel-head">
+                <h3>Contact Messages</h3>
+                <span>
+                  {loadingMessages
+                    ? "Loading..."
+                    : `${filteredMessages.length} messages`}
+                </span>
+              </div>
+              <MessageTable
+                messages={filteredMessages}
+                onOpen={(message) => {
+                  setSelectedMessage(message);
+                  if (message.status === "New")
+                    void updateMessageStatus(message, "Read");
+                }}
+              />
+            </section>
+          </>
+        )}
         {tab === "analytics" && (
           <AdminAnalytics users={users} totals={totals} />
         )}
@@ -290,6 +476,13 @@ export function AdminPage() {
           onClose={() => setSelected(null)}
           onSave={(patch) => save(selected, patch)}
           onDelete={() => remove(selected)}
+        />
+      )}
+      {selectedMessage && (
+        <MessageDrawer
+          target={selectedMessage}
+          onClose={() => setSelectedMessage(null)}
+          onSave={(status) => updateMessageStatus(selectedMessage, status)}
         />
       )}
     </DashboardShell>
@@ -385,6 +578,80 @@ function UserTable({
     </div>
   );
 }
+function MessageTable({
+  messages,
+  onOpen,
+}: {
+  messages: ContactSubmission[];
+  onOpen: (message: ContactSubmission) => void;
+}) {
+  return messages.length ? (
+    <>
+      <table className="data-table desktop">
+        <thead>
+          <tr>
+            <th>Sender</th>
+            <th>Subject</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {messages.map((message) => (
+            <tr key={message.id}>
+              <td>
+                <b>{message.fullName}</b>
+                <br />
+                <small>{message.email}</small>
+              </td>
+              <td>
+                <b>{message.subject}</b>
+                <br />
+                <small>{message.message.slice(0, 80)}</small>
+              </td>
+              <td>
+                <span className={`status status-${message.status.toLowerCase()}`}>
+                  {message.status}
+                </span>
+              </td>
+              <td>{formatDate(message.createdAt)}</td>
+              <td>
+                <button className="text-action" onClick={() => onOpen(message)}>
+                  View message
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mobile-cards">
+        {messages.map((message) => (
+          <button
+            className="mobile-order text-left"
+            key={message.id}
+            onClick={() => onOpen(message)}
+          >
+            <div className="mobile-order-top">
+              <b>{message.fullName}</b>
+              <span className={`status status-${message.status.toLowerCase()}`}>
+                {message.status}
+              </span>
+            </div>
+            <p>{message.email}</p>
+            <p>{message.subject}</p>
+          </button>
+        ))}
+      </div>
+    </>
+  ) : (
+    <div className="empty-state">
+      <Mail size={28} />
+      <h3>No contact messages found</h3>
+      <p>New contact form submissions will appear here.</p>
+    </div>
+  );
+}
 function UserDrawer({
   target,
   currentId,
@@ -395,7 +662,7 @@ function UserDrawer({
   target: MockUser;
   currentId: string;
   onClose: () => void;
-  onSave: (patch: Partial<Pick<MockUser, "plan" | "status">>) => void;
+  onSave: (patch: Partial<Pick<MockUser, "plan" | "status" | "role">>) => void;
   onDelete: () => void;
 }) {
   return (
@@ -453,6 +720,20 @@ function UserDrawer({
             </span>
           </div>
           <label className="form-group">
+            <span>Admin Panel Access</span>
+            <select
+              className="field"
+              value={target.role}
+              disabled={target.id === currentId}
+              onChange={(e) =>
+                onSave({ role: e.target.value as MockUser["role"] })
+              }
+            >
+              <option value="user">User only</option>
+              <option value="admin">Admin access</option>
+            </select>
+          </label>
+          <label className="form-group mt-4">
             <span>Plan</span>
             <select
               className="field"
@@ -490,6 +771,101 @@ function UserDrawer({
               <Trash2 size={14} />
               Delete User
             </button>
+            <button className="btn-primary" onClick={onClose}>
+              Done
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+function MessageDrawer({
+  target,
+  onClose,
+  onSave,
+}: {
+  target: ContactSubmission;
+  onClose: () => void;
+  onSave: (status: ContactSubmissionStatus) => void;
+}) {
+  return (
+    <div
+      className="drawer-backdrop"
+      onMouseDown={(event) => event.currentTarget === event.target && onClose()}
+    >
+      <aside
+        className="detail-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-message-title"
+      >
+        <div className="drawer-head">
+          <div>
+            <span className="eyebrow">Contact message</span>
+            <h2 id="admin-message-title">{target.subject}</h2>
+          </div>
+          <button
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Close message"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="drawer-body">
+          <div className="profile-hero">
+            <span className="avatar-large">
+              {target.fullName
+                .split(/\s+/)
+                .map((x) => x[0])
+                .join("")
+                .slice(0, 2)}
+            </span>
+            <h3>{target.fullName}</h3>
+            <p>{target.email}</p>
+          </div>
+          <div className="drawer-info-grid">
+            <span>
+              <small>Status</small>
+              <b>{target.status}</b>
+            </span>
+            <span>
+              <small>Received</small>
+              <b>{formatDate(target.createdAt)}</b>
+            </span>
+            <span>
+              <small>Source</small>
+              <b>{target.source}</b>
+            </span>
+            <span>
+              <small>Email</small>
+              <b>{target.email}</b>
+            </span>
+          </div>
+          <section className="card mt-4">
+            <h3>Message</h3>
+            <p className="whitespace-pre-wrap text-[13px] leading-6 text-[#464555]">
+              {target.message}
+            </p>
+          </section>
+          <label className="form-group mt-4">
+            <span>Message Status</span>
+            <select
+              className="field"
+              value={target.status}
+              onChange={(e) => onSave(e.target.value as ContactSubmissionStatus)}
+            >
+              {messageStatuses.map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <div className="drawer-actions">
+            <a className="btn-secondary" href={`mailto:${target.email}`}>
+              <Mail size={14} />
+              Reply by Email
+            </a>
             <button className="btn-primary" onClick={onClose}>
               Done
             </button>
@@ -592,4 +968,37 @@ function AdminBar({
       </i>
     </div>
   );
+}
+function mapContactSubmission(row: Record<string, unknown>): ContactSubmission {
+  return {
+    id: String(row.id || ""),
+    fullName: String(row.full_name || ""),
+    email: String(row.email || ""),
+    subject: String(row.subject || ""),
+    message: String(row.message || ""),
+    status: statusToUi(String(row.status || "new")),
+    source: String(row.source || "contact_page"),
+    userAgent: row.user_agent ? String(row.user_agent) : undefined,
+    createdAt: String(row.created_at || new Date().toISOString()),
+    updatedAt: String(row.updated_at || row.created_at || new Date().toISOString()),
+  };
+}
+function statusToUi(value: string): ContactSubmissionStatus {
+  if (value === "read") return "Read";
+  if (value === "replied") return "Replied";
+  if (value === "archived") return "Archived";
+  return "New";
+}
+function statusToDb(value: ContactSubmissionStatus) {
+  return value.toLowerCase();
+}
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : value;
 }
